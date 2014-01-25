@@ -44,7 +44,11 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
         transport = unixsocket.UNIXSocketTransport()
         
         with mock.patch.object(unixsocket, 'socket', autospec=True) as socket,\
+                mock.patch.object(unixsocket.reduction, 'reduce_socket', autospec=True) as reduce_socket,\
+                mock.patch.object(unixsocket.reduction, 'rebuild_socket', autospec=True) as rebuild_socket,\
+                mock.patch.object(base, 'multiprocessing', autospec=True) as multiprocessing,\
                 mock.patch.object(base, 'subprocess', autospec=True) as subprocess:
+            
             serversocket = mock.Mock()
             
             cmd = 'ls -al'
@@ -74,13 +78,29 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             
             socket.socket.return_value = serversocket
             
+            reduce_socket.return_value = (reduce_socket, ('I\'m a socket, NOT!', '', '', '',))
+            rebuild_socket.return_value = clientsocket
+            
+            
+            mock_Pool = mock.Mock()
+            def apply_async(func, args=(), kwargs={}):
+                return func(*args, **kwargs)
+            mock_Pool.apply_async.side_effect = apply_async
+            multiprocessing.Pool.return_value = mock_Pool
+            
             transport.run_server(max_accepts=1)
         
         self.assertEqual(serversocket.bind.call_count, 1)
         self.assertEqual(serversocket.bind.call_args_list[0][0][0], '/tmp/errand-boy')
         
         self.assertEqual(serversocket.listen.call_count, 1)
-        self.assertEqual(serversocket.listen.call_args_list[0][0][0], 1)
+        self.assertEqual(serversocket.listen.call_args_list[0][0][0], 5)
+        
+        self.assertEqual(reduce_socket.call_count, 1)
+        self.assertEqual(reduce_socket.call_args_list[0][0][0], clientsocket)
+        
+        self.assertEqual(rebuild_socket.call_count, 1)
+        self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
         self.assertEqual(clientsocket.recv.call_count, 5)
         
