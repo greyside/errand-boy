@@ -9,12 +9,10 @@ class UNIXSocketTransport(BaseTransport):
     """
     Usage:
     
-    cmd = 'ls -al'
-    
     transport = UNIXSocketTransport()
     
     # returns ProcessResult instance.
-    result = transport.run_cmd(cmd)
+    result = transport.run_cmd('ls -al')
     """
     
     def __init__(self, socket_path='/tmp/errand-boy', seperator='\r\n\r\n', listen_backlog=5, **kwargs):
