@@ -8,6 +8,13 @@ from .. import __version__
 
 logger = logging.getLogger(__name__)
 
+try:
+    from setproctitle import getproctitle, setproctitle
+except ImportError:
+    getproctitle = lambda: ''
+    setproctitle = lambda title: None
+
+
 class ProcessResult(collections.namedtuple('ProcessResult', ['VERSION', 'command_string', 'returncode', 'stdout', 'stderr'])):
     """
     VERSION - The version of the server this command was run on.
@@ -18,6 +25,10 @@ class ProcessResult(collections.namedtuple('ProcessResult', ['VERSION', 'command
     """
     def to_json(self, *args, **kwargs):
         return json.dumps(self._asdict(), *args, **kwargs)
+
+def worker_initializer(*args):
+    name = multiprocessing.current_process().name
+    setproctitle('errand-boy worker process %s' % name.split('-')[1])
 
 def worker(self, connection):
     #logging.debug('worker: %s' % connection)
@@ -87,11 +98,13 @@ class BaseTransport(object):
         return connection
     
     def run_server(self, max_accepts=1000):
+        setproctitle('errand-boy master process')
+        
         serverconnection = self.server_get_connection()
         
         logger.info('Accepting connections: %r' % (serverconnection,))
         
-        pool = multiprocessing.Pool(self.pool_size)
+        pool = multiprocessing.Pool(self.pool_size, worker_initializer)
         
         connections = []
         
