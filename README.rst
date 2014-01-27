@@ -17,10 +17,9 @@ Under the hood subprocess.Popen() uses os.fork(), which copies the currently run
 errand-boy still uses subprocess.Popen(), but tries to keep a low memory footprint.
 
 Further reading:
-http://stackoverflow.com/a/13329386/241955
-http://stackoverflow.com/a/14942111/241955
 
-http://stackoverflow.com/questions/18414020/memory-usage-keep-growing-with-pythons-multiprocessing-pool
+# http://stackoverflow.com/a/13329386/241955
+# http://stackoverflow.com/a/14942111/241955
 
 -----
 Usage
@@ -61,4 +60,12 @@ It shouldn't be too diffcult to write client libraries in other languages. You j
 2. Send the command you wish to execute as a string followed by ``\r\n\r\n`` (CRLFCRLF).
 3. Receive data back from the connection until the server stops sending back data. The server will close the connection when it's done.
 4. JSON decode the data, which contains stdout, stderr, and the return code.
+
+-----------
+Development
+-----------
+
+Further reading:
+
+# http://stackoverflow.com/questions/18414020/memory-usage-keep-growing-with-pythons-multiprocessing-pool
 
