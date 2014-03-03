@@ -5,7 +5,7 @@ from setuptools import setup
 import errand_boy
 
 package_name = 'errand_boy'
-test_package_name = '%s_test_project' % package_name
+test_package_name = 'tests'
 
 setup(name='errand-boy',
     version=errand_boy.__version__,
@@ -33,6 +33,6 @@ setup(name='errand-boy',
         'mock',
     ],
     include_package_data=True,
-    test_suite = '%s.runtests.runtests' % test_package_name,
+    test_suite = test_package_name,
 )
 
