@@ -21,9 +21,9 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
                 stderr='',
             )
             
-            recv_data = expected_result.to_json()
+            recv_data = "0:1:\r\n\r\n0"
             
-            clientsocket.recv.side_effect = iter([recv_data[:10], recv_data[10:], '',])
+            clientsocket.recv.side_effect = iter([recv_data[:1], recv_data[1:], '',])
             
             socket.socket.return_value = clientsocket
             
@@ -32,8 +32,9 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
         self.assertEqual(clientsocket.connect.call_count, 1)
         self.assertEqual(clientsocket.connect.call_args_list[0][0][0], '/tmp/errand-boy')
         
-        self.assertEqual(clientsocket.sendall.call_count, 1)
+        self.assertEqual(clientsocket.sendall.call_count, 2)
         self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], cmd+'\r\n\r\n')
+        self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n\r\n')
         
         self.assertEqual(clientsocket.recv.call_count, 3)
         
@@ -61,18 +62,8 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             
             subprocess.Popen.return_value = process
             
-            expected_result = base.ProcessResult(
-                VERSION=errand_boy.__version__,
-                command_string=cmd,
-                returncode=process.returncode,
-                stdout=stdout,
-                stderr=stderr,
-            )
-            
-            sendall_data = expected_result.to_json()
-            
             clientsocket = mock.Mock()
-            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n',])
+            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n', '',])
             
             serversocket.accept.return_value = clientsocket, ''
             
@@ -102,13 +93,13 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
         self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, 5)
+        self.assertEqual(clientsocket.recv.call_count, 8)
         
         self.assertEqual(subprocess.Popen.call_count, 1)
         self.assertEqual(subprocess.Popen.call_args_list[0][0][0], cmd)
         
         self.assertEqual(clientsocket.sendall.call_count, 1)
-        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], sendall_data)
+        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n\r\n0')
         
         self.assertEqual(clientsocket.close.call_count, 1)
 
