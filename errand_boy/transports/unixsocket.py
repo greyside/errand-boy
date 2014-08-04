@@ -1,6 +1,5 @@
 from multiprocessing import reduction
 import os
-import pickle
 import socket
 
 from .base import BaseTransport
@@ -80,7 +79,7 @@ class UNIXSocketTransport(BaseTransport):
         return clientsocket
     
     def client_send(self, connection, command_string):
-        connection.sendall(command_string+self.SEPERATOR)
+        connection.sendall(command_string+self.SEPARATOR)
     
     def client_receive(self, connection):
         data = []

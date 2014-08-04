@@ -5,7 +5,7 @@ import errand_boy
 from errand_boy.transports import base, unixsocket
 
 class UNIXSocketTransportClientTestCase(unittest.TestCase):
-    def test(self):
+    def test_run_cmd(self):
         transport = unixsocket.UNIXSocketTransport()
         
         with mock.patch.object(unixsocket, 'socket', autospec=True) as socket:
@@ -40,6 +40,7 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
         
         self.assertEqual(result, expected_result)
 
+
 class UNIXSocketTransportServerTestCase(unittest.TestCase):
     def test(self):
         transport = unixsocket.UNIXSocketTransport()
@@ -54,7 +55,7 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             
             cmd = 'ls -al'
             
-            stdout, stderr= '', ''
+            stdout, stderr = '', ''
             
             process = mock.Mock()
             process.communicate.return_value = stdout, stderr
@@ -74,9 +75,7 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             
             
             mock_Pool = mock.Mock()
-            def apply_async(func, args=(), kwargs={}):
-                return func(*args, **kwargs)
-            mock_Pool.apply_async.side_effect = apply_async
+            mock_Pool.apply_async.side_effect = lambda f, args=(), kwargs={}: f(*args, **kwargs)
             multiprocessing.Pool.return_value = mock_Pool
             
             transport.run_server(max_accepts=1)
@@ -102,4 +101,3 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
         self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n\r\n0')
         
         self.assertEqual(clientsocket.close.call_count, 1)
-

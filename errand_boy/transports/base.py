@@ -47,8 +47,8 @@ class PopenProxy(object):
         
         data = self._transport.client_receive(self.connection)
         
-        # check for seperator, if present set self.returncode
-        data, returncode = data.split(self._transport.SEPERATOR, 1)
+        # check for separator, if present set self.returncode
+        data, returncode = self._transport.split_data(data)
         
         if returncode:
             self.returncode = int(returncode)
@@ -74,15 +74,17 @@ def worker_initializer(*args):
     name = multiprocessing.current_process().name
     setproctitle('errand-boy worker process %s' % name.split('-')[1])
 
+
 def worker(self, connection):
     #logging.debug('worker: %s' % connection)
     return self.server_handle_client(connection)
+
 
 class BaseTransport(object):
     """
     Base class providing functionality common to all transports.
     """
-    SEPERATOR = '\r\n\r\n'
+    SEPARATOR = '\r\n\r\n'
     STDOUT_PREFIX = '0:'
     STDERR_PREFIX = '1:'
     
@@ -106,18 +108,28 @@ class BaseTransport(object):
         self.server_send(connection, self.STDERR_PREFIX+stderr)
     
     def server_send_returncode(self, connection, returncode):
-        self.server_send(connection, self.SEPERATOR+str(returncode))
+        self.server_send(connection, self.SEPARATOR+str(returncode))
     
-    def server_split_data(self, data):
-        return data.split(self.SEPERATOR, 1)
+    def server_close(self, connection):
+        pass
+    
+    def split_data(self, data):
+        data = data.split(self.SEPARATOR, 1)
+        remainder = ''
+        
+        if len(data) > 1:
+            data, remainder = data
+        else:
+            data = data[0]
+        
+        return data, remainder
     
     def server_handle_client(self, connection):
         #logging.debug('server_handle_client %s' % connection)
         connection = self.server_deserialize_connection(connection)
         #logging.debug('deserialized connection: %s' % connection)
         
-        command_string, remainder = self.server_split_data(self.server_receive(connection))
-        
+        command_string, remainder = self.split_data(self.server_receive(connection))
         #logging.debug('received command string: %s' % command_string)
         
         process = subprocess.Popen(
@@ -129,9 +141,9 @@ class BaseTransport(object):
         )
         
         while process.returncode is None:
-            process_input, remainder = self.server_split_data(remainder+self.server_receive(connection))
+            process_input, remainder = self.split_data(remainder+self.server_receive(connection))
             process_input = process_input or None
-            
+            print process_input
             process_stdout, process_stderr = process.communicate(input=process_input)
             
             self.server_send_stdout_stderr(connection, process_stdout, process_stderr)
