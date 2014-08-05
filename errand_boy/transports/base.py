@@ -157,7 +157,12 @@ class BaseTransport(object):
         
         connections = []
         
-        while max_accepts:
+        remaining_accepts = max_accepts
+        
+        if not remaining_accepts:
+            remaining_accepts = True
+        
+        while remaining_accepts:
             connection = self.server_accept(serverconnection)
             
             logger.info('Accepted connection from: %r' % (connection,))
@@ -166,7 +171,8 @@ class BaseTransport(object):
             
             connection = None
             
-            max_accepts -= 1
+            if remaining_accepts is not True:
+                remaining_accepts -= 1
     
     def client_get_connection(self):
         pass

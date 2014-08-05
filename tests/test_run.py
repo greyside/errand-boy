@@ -37,7 +37,7 @@ class MainTestCase(unittest.TestCase):
         self.assertEqual(mocked_sys.exit.call_count, 1)
         self.assertEqual(mocked_sys.exit.call_args_list[0][0][0], mock_process.returncode)
     
-    def test_server(self):
+    def test_server_no_options(self):
         argv = ['/srv/errand-boy/errand_boy/run.py']
         
         with mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True) as UNIXSocketTransport:
@@ -48,4 +48,20 @@ class MainTestCase(unittest.TestCase):
             run.main(argv)
         
         self.assertEqual(transport.run_server.call_count, 1)
+        self.assertEqual(transport.run_server.call_args_list[0][0], tuple())
+        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': 1000})
+    
+    def test_server_with_options(self):
+        argv = ['/srv/errand-boy/errand_boy/run.py', '--max-accepts', '5']
+        
+        with mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True) as UNIXSocketTransport:
+            transport = mock.Mock()
+            
+            UNIXSocketTransport.return_value = transport
+            
+            run.main(argv)
+        
+        self.assertEqual(transport.run_server.call_count, 1)
+        self.assertEqual(transport.run_server.call_args_list[0][0], tuple())
+        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': int(argv[2])})
 

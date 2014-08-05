@@ -55,17 +55,32 @@ Use the client in your code::
     
     transport = UNIXSocketTransport()
     
-    result = transport.run_cmd('ls -al')
+    process, stdout, stderr = transport.run_cmd('ls -al')
     
-    print result.returncode
-    print result.stdout
-    print result.stderr
+    print process.returncode
+    print stdout
+    print stderr
+
+Use a subprocess.Popen-like interface::
+
+    from errand_boy.transports.unixsocket import UNIXSocketTransport
+    
+    transport = UNIXSocketTransport()
+    
+    process = transport.Popen('ls -al')
+    
+    stdout, stderr = process.communicate(input='foo')
+    
+    print process.returncode
+    print stdout
+    print stderr
 
 Run load tests::
 
-    python -m errand_boy.run
+    python -m errand_boy.run --max-accepts=0
 
     pip install Fabric locustio
+    cd errand-boy/
     fab locust_local
 
 --------------------------------
