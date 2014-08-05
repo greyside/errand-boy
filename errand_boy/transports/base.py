@@ -1,9 +1,6 @@
-import collections
-import json
 import logging
 import multiprocessing
 import subprocess
-import socket
 
 from .. import constants
 from .. import __version__

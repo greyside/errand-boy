@@ -28,7 +28,7 @@ setup(name='errand-boy',
     packages=[
         package_name,
     ],
-    install_requires=[],
+    install_requires=['eventlet'],
     tests_require=[
         'mock',
     ],
