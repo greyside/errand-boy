@@ -4,7 +4,10 @@ import logging
 import multiprocessing
 import subprocess
 import socket
+
+from .. import constants
 from .. import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,23 +18,16 @@ except ImportError:
     setproctitle = lambda title: None
 
 
-class ProcessResult(collections.namedtuple('ProcessResult', ['VERSION', 'command_string', 'returncode', 'stdout', 'stderr'])):
-    """
-    VERSION - The version of the server this command was run on.
-    command_string - The command that was run.
-    returncode - The return code of the process.
-    stdout - The stdout of the process.
-    stderr - The stderr of the process.
-    """
-    def to_json(self, *args, **kwargs):
-        return json.dumps(self._asdict(), *args, **kwargs)
-
 class PopenProxy(object):
-    returncode = None
-    
     def __init__(self, transport, args):
         self._transport = transport
         self._args = args
+        
+        self.stdin = None
+        self.stdout = None
+        self.stderr = None
+        self.pid = None
+        self.returncode = None
         
         self.connection = self._transport.client_get_connection()
         
@@ -45,24 +41,21 @@ class PopenProxy(object):
         
         self._transport.client_send(self.connection, input)
         
-        data = self._transport.client_receive(self.connection)
+        data, returncode = self._transport.split_data(self._transport.client_recv(self.connection))
         
-        # check for separator, if present set self.returncode
-        data, returncode = self._transport.split_data(data)
-        
-        if returncode:
-            self.returncode = int(returncode)
-            self._transport.client_close(self.connection)
+        self.returncode = int(returncode)
+        self._transport.client_close(self.connection)
         
         stdout = []
         stderr = []
         
-        for stdoutline in data.split(self._transport.STDOUT_PREFIX):
-            stdout_split = stdoutline.split(self._transport.STDERR_PREFIX)
-            
-            stdout.append(stdout_split[0])
-            
-            stderr.extend(stdout_split[1:])
+        for line in data.split(constants.STD_SEP):
+            if constants.STD_ID_SEP in line:
+                std_id, msg = line.split(constants.STD_ID_SEP, 1)
+                if std_id == constants.STDOUT_ID:
+                    stdout.append(msg)
+                if std_id == constants.STDERR_ID:
+                    stderr.append(msg)
         
         stdout = ''.join(stdout)
         stderr = ''.join(stderr)
@@ -84,9 +77,6 @@ class BaseTransport(object):
     """
     Base class providing functionality common to all transports.
     """
-    SEPARATOR = '\r\n\r\n'
-    STDOUT_PREFIX = '0:'
-    STDERR_PREFIX = '1:'
     
     def __init__(self, pool_size=10):
         self.pool_size = pool_size
@@ -94,7 +84,7 @@ class BaseTransport(object):
     def server_get_connection(self):
         pass
     
-    def server_receive(self, connection):
+    def server_recv(self, connection):
         pass
     
     def server_send(self, connection, data):
@@ -104,20 +94,20 @@ class BaseTransport(object):
         pass
     
     def server_send_stdout_stderr(self, connection, stdout, stderr):
-        self.server_send(connection, self.STDOUT_PREFIX+stdout)
-        self.server_send(connection, self.STDERR_PREFIX+stderr)
+        self.server_send(connection, constants.STDOUT_PREFIX+stdout)
+        self.server_send(connection, constants.STDERR_PREFIX+stderr)
     
     def server_send_returncode(self, connection, returncode):
-        self.server_send(connection, self.SEPARATOR+str(returncode))
+        self.server_send(connection, constants.SEP+str(returncode)+constants.SEP)
     
     def server_close(self, connection):
         pass
     
-    def split_data(self, data):
-        data = data.split(self.SEPARATOR, 1)
+    def split_data(self, data, num=1):
+        data = [s for s in data.split(constants.SEP, num) if s]
         remainder = ''
         
-        if len(data) > 1:
+        if len(data) > num:
             data, remainder = data
         else:
             data = data[0]
@@ -127,9 +117,9 @@ class BaseTransport(object):
     def server_handle_client(self, connection):
         #logging.debug('server_handle_client %s' % connection)
         connection = self.server_deserialize_connection(connection)
-        #logging.debug('deserialized connection: %s' % connection)
         
-        command_string, remainder = self.split_data(self.server_receive(connection))
+        command_string, process_input = self.split_data(self.server_recv(connection))
+        
         #logging.debug('received command string: %s' % command_string)
         
         process = subprocess.Popen(
@@ -140,19 +130,17 @@ class BaseTransport(object):
             close_fds=True
         )
         
-        while process.returncode is None:
-            process_input, remainder = self.split_data(remainder+self.server_receive(connection))
-            process_input = process_input or None
-            print process_input
-            process_stdout, process_stderr = process.communicate(input=process_input)
-            
-            self.server_send_stdout_stderr(connection, process_stdout, process_stderr)
+        process_input = process_input or None
+        
+        process_stdout, process_stderr = process.communicate(input=process_input)
+        
+        self.server_send_stdout_stderr(connection, process_stdout, process_stderr)
         
         self.server_send_returncode(connection, process.returncode)
         
         self.server_close(connection)
     
-    def server_accept(self, connection):
+    def server_accept(self, serverconnection):
         pass
     
     def server_deserialize_connection(self, connection):
@@ -189,7 +177,7 @@ class BaseTransport(object):
     def client_send(self, connection, command_string):
         pass
     
-    def client_receive(self, connection):
+    def client_recv(self, connection):
         pass
     
     def client_close(self, connection):
@@ -198,24 +186,10 @@ class BaseTransport(object):
     def run_cmd(self, command_string):
         process = self.Popen(command_string)
         
-        stdout = ''
-        stderr = ''
+        stdout, stderr = process.communicate()
         
-        while process.returncode is None:
-            data = process.communicate()
-            stdout += data[0]
-            stderr += data[1]
-        
-        result = ProcessResult(
-            __version__,
-            command_string,
-            process.returncode,
-            stdout,
-            stderr,
-        )
-        
-        return result
+        return process, stdout, stderr
     
-    def Popen(self, args):
+    def Popen(self, args, *options, **kwargs):
         return PopenProxy(self, args)
 

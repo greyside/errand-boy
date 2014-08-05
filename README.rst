@@ -32,7 +32,7 @@ Run tests::
 
 Run server::
 
-    python -m errand_boy.run server
+    python -m errand_boy.run
 
 Run client (useful for testing/debugging)::
 

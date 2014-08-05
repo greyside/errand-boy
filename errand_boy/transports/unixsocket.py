@@ -1,8 +1,11 @@
+import errno
 from multiprocessing import reduction
 import os
 import socket
 
 from .base import BaseTransport
+from .. import constants
+
 
 class UNIXSocketTransport(BaseTransport):
     """
@@ -10,8 +13,7 @@ class UNIXSocketTransport(BaseTransport):
     
     transport = UNIXSocketTransport()
     
-    # returns ProcessResult instance.
-    result = transport.run_cmd('ls -al')
+    process, stdout, stderr = transport.run_cmd('ls -al')
     """
     
     def __init__(self, socket_path='/tmp/errand-boy', listen_backlog=5, **kwargs):
@@ -33,20 +35,14 @@ class UNIXSocketTransport(BaseTransport):
         
         return serversocket
     
-    def server_receive(self, connection):
+    def server_recv(self, connection):
         clientsocket, address = connection
         
-        data = []
+        data = ''
         
-        while True:
+        while data.count(constants.SEP) < 2:
             new_data = clientsocket.recv(4096)
-            
-            if new_data:
-                data.append(new_data)
-            else:
-                break
-        
-        data = ''.join(data)
+            data += new_data
         
         return data
     
@@ -78,21 +74,15 @@ class UNIXSocketTransport(BaseTransport):
         
         return clientsocket
     
-    def client_send(self, connection, command_string):
-        connection.sendall(command_string+self.SEPARATOR)
+    def client_send(self, connection, data):
+        connection.sendall(data+constants.SEP)
     
-    def client_receive(self, connection):
-        data = []
+    def client_recv(self, connection):
+        data = ''
         
-        while True:
+        while data.count(constants.SEP) < 2:
             new_data = connection.recv(4096)
-            
-            if new_data:
-                data.append(new_data)
-            else:
-                break
-        
-        data = ''.join(data)
+            data += new_data
         
         return data
     

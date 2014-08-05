@@ -4,6 +4,8 @@ import unittest
 import errand_boy
 from errand_boy.transports import base, unixsocket
 
+from .data import commands, get_command_data, get_command_transfer_data
+
 class UNIXSocketTransportClientTestCase(unittest.TestCase):
     def test_run_cmd(self):
         transport = unixsocket.UNIXSocketTransport()
@@ -13,17 +15,10 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
             
             cmd = 'ls -al'
             
-            expected_result = base.ProcessResult(
-                VERSION=errand_boy.__version__,
-                command_string=cmd,
-                returncode=0,
-                stdout='',
-                stderr='',
-            )
+            data = get_command_data(cmd)
+            recv_data = get_command_transfer_data(cmd)
             
-            recv_data = "0:1:\r\n\r\n0"
-            
-            clientsocket.recv.side_effect = iter([recv_data[:1], recv_data[1:], '',])
+            clientsocket.recv.side_effect = iter([recv_data[:1], recv_data[1:],])
             
             socket.socket.return_value = clientsocket
             
@@ -36,9 +31,12 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
         self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], cmd+'\r\n\r\n')
         self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n\r\n')
         
-        self.assertEqual(clientsocket.recv.call_count, 3)
+        self.assertEqual(clientsocket.recv.call_count, 2)
         
-        self.assertEqual(result, expected_result)
+        self.assertEqual(result[0].returncode, data[2])
+        
+        self.assertEqual(result[1], data[0])
+        self.assertEqual(result[2], data[1])
 
 
 class UNIXSocketTransportServerTestCase(unittest.TestCase):
@@ -64,7 +62,7 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             subprocess.Popen.return_value = process
             
             clientsocket = mock.Mock()
-            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n', '',])
+            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n',])
             
             serversocket.accept.return_value = clientsocket, ''
             
@@ -92,12 +90,14 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
         self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, 8)
+        self.assertEqual(clientsocket.recv.call_count, 7)
         
         self.assertEqual(subprocess.Popen.call_count, 1)
         self.assertEqual(subprocess.Popen.call_args_list[0][0][0], cmd)
         
-        self.assertEqual(clientsocket.sendall.call_count, 1)
-        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n\r\n0')
+        self.assertEqual(clientsocket.sendall.call_count, 3)
+        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n0:')
+        self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n1:')
+        self.assertEqual(clientsocket.sendall.call_args_list[2][0][0], '\r\n\r\n0\r\n\r\n')
         
         self.assertEqual(clientsocket.close.call_count, 1)
