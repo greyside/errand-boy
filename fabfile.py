@@ -14,5 +14,5 @@ def locust_local(url=None):
     
     locust_class = 'LoadTestUser'
     
-    local('locust --host %s %s' % (test_host, locust_class,))
+    local('locust --host {} {}'.format(test_host, locust_class))
 

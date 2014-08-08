@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 try:
     from setproctitle import getproctitle, setproctitle
 except ImportError:
+    logger.info('Cannot set process name.')
     getproctitle = lambda: ''
     setproctitle = lambda title: None
 
@@ -62,11 +63,12 @@ class PopenProxy(object):
 
 def worker_initializer(*args):
     name = multiprocessing.current_process().name
-    setproctitle('errand-boy worker process %s' % name.split('-')[1])
+    logger.debug('Worker initialized: {}'.format(name))
+    setproctitle('errand-boy worker process {}'.format(name.split('-')[1]))
 
 
 def worker(self, connection):
-    #logging.debug('worker: %s' % connection)
+    logger.debug('worker: {}'.format(connection))
     return self.server_handle_client(connection)
 
 
@@ -112,12 +114,13 @@ class BaseTransport(object):
         return data, remainder
     
     def server_handle_client(self, connection):
-        #logging.debug('server_handle_client %s' % connection)
+        logger.debug('server_handle_client: {}'.format(connection))
+        
         connection = self.server_deserialize_connection(connection)
         
         command_string, process_input = self.split_data(self.server_recv(connection))
         
-        #logging.debug('received command string: %s' % command_string)
+        logger.debug('received command string: {}'.format(command_string))
         
         process = subprocess.Popen(
             command_string,
@@ -151,7 +154,7 @@ class BaseTransport(object):
         
         serverconnection = self.server_get_connection()
         
-        logger.info('Accepting connections: %r' % (serverconnection,))
+        logger.info('Accepting connections: {}'.format(serverconnection))
         
         pool = multiprocessing.Pool(self.pool_size, worker_initializer)
         
@@ -165,7 +168,7 @@ class BaseTransport(object):
         while remaining_accepts:
             connection = self.server_accept(serverconnection)
             
-            logger.info('Accepted connection from: %r' % (connection,))
+            logger.info('Accepted connection from: {}'.format(connection))
             
             result = pool.apply_async(worker, [self, self.server_serialize_connection(connection)])
             
