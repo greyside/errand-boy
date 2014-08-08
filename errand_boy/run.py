@@ -11,6 +11,9 @@ parser = argparse.ArgumentParser(description='Start errand-boy.')
 parser.add_argument('-t', '--transport', dest='transport', nargs='?',
            default='errand_boy.transports.unixsocket.UNIXSocketTransport',
            help='Python path to the transport to use.')
+parser.add_argument('--pool-size', dest='pool_size', nargs='?', type=int,
+           default=1000,
+           help='Number of worker processes to use.')
 parser.add_argument('--max-accepts', dest='max_accepts', nargs='?', type=int,
            default=1000,
            help='Max number of connections the server will accept.')
@@ -73,7 +76,10 @@ def main(argv):
     if not command:
         logging.config.dictConfig(LOGGING)
         
-        transport.run_server(max_accepts=parsed_args.max_accepts)
+        transport.run_server(
+            pool_size=parsed_args.pool_size,
+            max_accepts=parsed_args.max_accepts
+        )
     else:
         process, stdout, stderr = transport.run_cmd(' '.join(command))
         

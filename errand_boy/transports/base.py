@@ -1,6 +1,8 @@
 import logging
 import multiprocessing
+import signal
 import subprocess
+import sys
 
 from .. import constants
 from .. import __version__
@@ -9,10 +11,9 @@ from .. import __version__
 logger = logging.getLogger(__name__)
 
 try:
-    from setproctitle import getproctitle, setproctitle
+    from setproctitle import setproctitle
 except ImportError:
     logger.info('Cannot set process name.')
-    getproctitle = lambda: ''
     setproctitle = lambda title: None
 
 
@@ -61,15 +62,16 @@ class PopenProxy(object):
         return stdout, stderr
 
 
-def worker_initializer(*args):
+def worker_init(*args):
     name = multiprocessing.current_process().name
     logger.debug('Worker initialized: {}'.format(name))
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     setproctitle('errand-boy worker process {}'.format(name.split('-')[1]))
 
 
 def worker(self, connection):
-    logger.debug('worker: {}'.format(connection))
-    return self.server_handle_client(connection)
+    logger.debug('worker connected')
+    self.server_handle_client(connection)
 
 
 class BaseTransport(object):
@@ -77,8 +79,11 @@ class BaseTransport(object):
     Base class providing functionality common to all transports.
     """
     
-    def __init__(self, pool_size=10):
-        self.pool_size = pool_size
+    def __init__(self):
+        pass
+    
+    def connection_to_string(self, connection):
+        return repr(connection)
     
     def server_get_connection(self):
         pass
@@ -114,13 +119,13 @@ class BaseTransport(object):
         return data, remainder
     
     def server_handle_client(self, connection):
-        logger.debug('server_handle_client: {}'.format(connection))
-        
         connection = self.server_deserialize_connection(connection)
+        
+        logger.debug('server_handle_client: {}'.format(self.connection_to_string(connection)))
         
         command_string, process_input = self.split_data(self.server_recv(connection))
         
-        logger.debug('received command string: {}'.format(command_string))
+        logger.info('Received command string: {}'.format(command_string))
         
         process = subprocess.Popen(
             command_string,
@@ -149,14 +154,16 @@ class BaseTransport(object):
     def server_serialize_connection(self, connection):
         return connection
     
-    def run_server(self, max_accepts=1000):
+    def run_server(self, pool_size=10, max_accepts=1000):
         setproctitle('errand-boy master process')
         
         serverconnection = self.server_get_connection()
         
-        logger.info('Accepting connections: {}'.format(serverconnection))
+        logger.info('Accepting connections: {}'.format(self.connection_to_string(serverconnection)))
+        logger.info('pool_size: {}'.format(pool_size))
+        logger.info('max_accepts: {}'.format(max_accepts))
         
-        pool = multiprocessing.Pool(self.pool_size, worker_initializer)
+        pool = multiprocessing.Pool(pool_size, worker_init)
         
         connections = []
         
@@ -165,17 +172,28 @@ class BaseTransport(object):
         if not remaining_accepts:
             remaining_accepts = True
         
-        while remaining_accepts:
-            connection = self.server_accept(serverconnection)
-            
-            logger.info('Accepted connection from: {}'.format(connection))
-            
-            result = pool.apply_async(worker, [self, self.server_serialize_connection(connection)])
-            
-            connection = None
-            
-            if remaining_accepts is not True:
-                remaining_accepts -= 1
+        try:
+            while remaining_accepts:
+                connection = self.server_accept(serverconnection)
+                
+                logger.info('Accepted connection from: {}'.format(self.connection_to_string(connection)))
+                
+                result = pool.apply_async(worker, [self, self.server_serialize_connection(connection)])
+                
+                connection = None
+                
+                if remaining_accepts is not True:
+                    remaining_accepts -= 1
+        except KeyboardInterrupt:
+            logger.info('Received KeyboardInterrupt')
+            pool.terminate()
+        except Exception as e:
+            logger.exception(e)
+            pool.terminate()
+            raise
+        finally:
+            pool.close()
+            pool.join()
     
     def client_get_connection(self):
         pass

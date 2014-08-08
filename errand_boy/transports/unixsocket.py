@@ -22,6 +22,11 @@ class UNIXSocketTransport(BaseTransport):
         self.socket_path = socket_path
         self.listen_backlog = listen_backlog
     
+    def connection_to_string(self, connection):
+        if isinstance(connection, tuple):
+            return str((connection[0].getsockname(), connection[1],))
+        return connection.getsockname()
+    
     def server_get_connection(self):
         serversocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         

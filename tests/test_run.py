@@ -49,7 +49,7 @@ class MainTestCase(unittest.TestCase):
         
         self.assertEqual(transport.run_server.call_count, 1)
         self.assertEqual(transport.run_server.call_args_list[0][0], tuple())
-        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': 1000})
+        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': 1000, 'pool_size': 1000})
     
     def test_server_with_options(self):
         argv = ['/srv/errand-boy/errand_boy/run.py', '--max-accepts', '5']
@@ -63,5 +63,5 @@ class MainTestCase(unittest.TestCase):
         
         self.assertEqual(transport.run_server.call_count, 1)
         self.assertEqual(transport.run_server.call_args_list[0][0], tuple())
-        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': int(argv[2])})
+        self.assertEqual(transport.run_server.call_args_list[0][1], {'max_accepts': int(argv[2]), 'pool_size': 1000})
 

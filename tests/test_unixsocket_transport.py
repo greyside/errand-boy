@@ -138,9 +138,11 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
             mock_Pool.apply_async.side_effect = lambda f, args=(), kwargs={}: f(*args, **kwargs)
             multiprocessing.Pool.return_value = mock_Pool
             
+            # serve until an error happens (in ths case StopIteration from running
+            # out of items in clientsocket.recv.side_effect)
             try:
                 transport.run_server(max_accepts=0)
-            except:
+            except StopIteration:
                 pass
         
         self.assertEqual(serversocket.bind.call_count, 1)
