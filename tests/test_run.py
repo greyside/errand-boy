@@ -1,17 +1,17 @@
-import mock
-import unittest
-
 import errand_boy
 from errand_boy import run
-from errand_boy.transports import base, unixsocket
+from errand_boy.transports import unixsocket
 
-class MainTestCase(unittest.TestCase):
+from .base import mock, BaseTestCase
+
+
+class MainTestCase(BaseTestCase):
     def test_client(self):
         argv = ['/srv/errand-boy/errand_boy/run.py', 'ls', '-al']
         cmd = ' '.join(argv[1:])
         
-        with mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True) as UNIXSocketTransport,\
-                mock.patch.object(run, 'sys', autospec=True) as mocked_sys:
+        with self.UNIXSocketTransport_patcher as UNIXSocketTransport,\
+                self.sys_patcher as mocked_sys:
             mock_process = mock.Mock()
             mock_process.returncode = 0
             
@@ -40,7 +40,7 @@ class MainTestCase(unittest.TestCase):
     def test_server_no_options(self):
         argv = ['/srv/errand-boy/errand_boy/run.py']
         
-        with mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True) as UNIXSocketTransport:
+        with self.UNIXSocketTransport_patcher as UNIXSocketTransport:
             transport = mock.Mock()
             
             UNIXSocketTransport.return_value = transport
@@ -54,7 +54,7 @@ class MainTestCase(unittest.TestCase):
     def test_server_with_options(self):
         argv = ['/srv/errand-boy/errand_boy/run.py', '--max-accepts', '5']
         
-        with mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True) as UNIXSocketTransport:
+        with self.UNIXSocketTransport_patcher as UNIXSocketTransport:
             transport = mock.Mock()
             
             UNIXSocketTransport.return_value = transport

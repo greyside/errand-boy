@@ -1,16 +1,15 @@
-import mock
-import unittest
-
 import errand_boy
 from errand_boy.transports import base, unixsocket
 
+from .base import mock, BaseTestCase
 from .data import commands, get_command_data, get_command_transfer_data
 
-class UNIXSocketTransportClientTestCase(unittest.TestCase):
+
+class UNIXSocketTransportClientTestCase(BaseTestCase):
     def test_run_cmd(self):
         transport = unixsocket.UNIXSocketTransport()
         
-        with mock.patch.object(unixsocket, 'socket', autospec=True) as socket:
+        with self.socket_patcher as socket:
             clientsocket = mock.Mock()
             
             cmd = 'ls -al'
@@ -39,15 +38,15 @@ class UNIXSocketTransportClientTestCase(unittest.TestCase):
         self.assertEqual(result[2], data[1])
 
 
-class UNIXSocketTransportServerTestCase(unittest.TestCase):
+class UNIXSocketTransportServerTestCase(BaseTestCase):
     def test(self):
         transport = unixsocket.UNIXSocketTransport()
         
-        with mock.patch.object(unixsocket, 'socket', autospec=True) as socket,\
-                mock.patch.object(unixsocket.reduction, 'reduce_socket', autospec=True) as reduce_socket,\
-                mock.patch.object(unixsocket.reduction, 'rebuild_socket', autospec=True) as rebuild_socket,\
-                mock.patch.object(base, 'multiprocessing', autospec=True) as multiprocessing,\
-                mock.patch.object(base, 'subprocess', autospec=True) as subprocess:
+        with self.socket_patcher as socket,\
+                self.reduce_socket_patcher as reduce_socket,\
+                self.rebuild_socket_patcher as rebuild_socket,\
+                self.multiprocessing_patcher as multiprocessing,\
+                self.subprocess_patcher as subprocess:
             
             serversocket = mock.Mock()
             
@@ -105,11 +104,11 @@ class UNIXSocketTransportServerTestCase(unittest.TestCase):
     def test_max_accepts_zero(self):
         transport = unixsocket.UNIXSocketTransport()
         
-        with mock.patch.object(unixsocket, 'socket', autospec=True) as socket,\
-                mock.patch.object(unixsocket.reduction, 'reduce_socket', autospec=True) as reduce_socket,\
-                mock.patch.object(unixsocket.reduction, 'rebuild_socket', autospec=True) as rebuild_socket,\
-                mock.patch.object(base, 'multiprocessing', autospec=True) as multiprocessing,\
-                mock.patch.object(base, 'subprocess', autospec=True) as subprocess:
+        with self.socket_patcher as socket,\
+                self.reduce_socket_patcher as reduce_socket,\
+                self.rebuild_socket_patcher as rebuild_socket,\
+                self.multiprocessing_patcher as multiprocessing,\
+                self.subprocess_patcher as subprocess:
             
             serversocket = mock.Mock()
             

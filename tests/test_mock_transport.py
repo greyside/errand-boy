@@ -1,16 +1,15 @@
-import mock
-import unittest
-
 import errand_boy
 from errand_boy.transports import base, mock as mock_transport
 
+from .base import mock, BaseTestCase
 
-class MockTransportTestCase(unittest.TestCase):
+
+class MockTransportTestCase(BaseTestCase):
     def test(self):
         transport = mock_transport.MockTransport()
         
-        with mock.patch.object(base, 'multiprocessing', autospec=True) as multiprocessing,\
-                mock.patch.object(base, 'subprocess', autospec=True) as subprocess:
+        with self.multiprocessing_patcher as multiprocessing,\
+                self.subprocess_patcher as subprocess:
             
             cmd = 'ls -al'
             

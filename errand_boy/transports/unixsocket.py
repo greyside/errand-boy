@@ -7,6 +7,14 @@ from .base import BaseTransport
 from .. import constants
 
 
+try:
+    rebuild_socket = reduction.rebuild_socket
+    reduce_socket = reduction.reduce_socket
+except AttributeError:
+    rebuild_socket = reduction._rebuild_socket
+    reduce_socket = reduction._reduce_socket
+
+
 class UNIXSocketTransport(BaseTransport):
     """
     Usage:
@@ -67,10 +75,10 @@ class UNIXSocketTransport(BaseTransport):
         return connection.accept()
     
     def server_deserialize_connection(self, connection):
-        return reduction.rebuild_socket(*connection[0][1]), connection[1]
+        return rebuild_socket(*connection[0][1]), connection[1]
     
     def server_serialize_connection(self, connection):
-        return reduction.reduce_socket(connection[0]), connection[1]
+        return reduce_socket(connection[0]), connection[1]
     
     def client_get_connection(self):
         clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
