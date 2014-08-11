@@ -1,4 +1,7 @@
+import pickle
+
 from errand_boy import constants
+from errand_boy.transports import base
 
 
 commands = {
@@ -28,3 +31,20 @@ def get_command_data(cmd):
     stdout, stderr = zip(*result[0])
     
     return ''.join(stdout), ''.join(stderr), result[1]
+
+def get_req(method, path, obj=None):
+    if obj is not None:
+        obj = pickle.dumps(obj)
+        
+        return "%s %s\r\nContent-Length: %s\r\n\r\n%s" % (method, path, len(obj), obj)
+    else:
+        return "%s %s\r\nContent-Length: 0\r\n" % (method, path,)
+
+def get_resp(status, obj=None):
+    if obj is not None:
+        obj = pickle.dumps(obj)
+        
+        return "%s\r\nContent-Length: %s\r\n\r\n%s" % (status, len(obj), obj)
+    else:
+        return "%s\r\nContent-Length: 0\r\n" % (status,)
+

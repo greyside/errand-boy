@@ -1,5 +1,6 @@
-SEP = '\r\n\r\n'
-STD_SEP = '\r\n'
+CRLF = '\r\n'
+SEP = CRLF+CRLF
+STD_SEP = CRLF
 STD_ID_SEP = ':'
 STDOUT_ID = '0'
 STDERR_ID = '1'

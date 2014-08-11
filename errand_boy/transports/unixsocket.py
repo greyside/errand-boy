@@ -48,16 +48,10 @@ class UNIXSocketTransport(BaseTransport):
         
         return serversocket
     
-    def server_recv(self, connection):
+    def server_recv(self, connection, length):
         clientsocket, address = connection
         
-        data = ''
-        
-        while data.count(constants.SEP) < 2:
-            new_data = clientsocket.recv(4096)
-            data += new_data
-        
-        return data
+        return clientsocket.recv(length)
     
     def server_send(self, connection, data):
         clientsocket, address = connection
@@ -88,16 +82,10 @@ class UNIXSocketTransport(BaseTransport):
         return clientsocket
     
     def client_send(self, connection, data):
-        connection.sendall(data+constants.SEP)
+        connection.sendall(data)
     
-    def client_recv(self, connection):
-        data = ''
-        
-        while data.count(constants.SEP) < 2:
-            new_data = connection.recv(4096)
-            data += new_data
-        
-        return data
+    def client_recv(self, connection, length):
+        return connection.recv(length)
     
     def client_close(self, connection):
         try:

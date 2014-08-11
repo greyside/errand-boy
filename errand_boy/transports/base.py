@@ -1,8 +1,11 @@
 import logging
 import multiprocessing
+import numbers
+import pickle
 import signal
 import subprocess
 import sys
+import uuid
 
 from .. import constants
 from .. import __version__
@@ -17,49 +20,46 @@ except ImportError:
     setproctitle = lambda title: None
 
 
-class PopenProxy(object):
-    def __init__(self, transport, args):
-        self._transport = transport
-        self._args = args
-        
-        self.stdin = None
-        self.stdout = None
-        self.stderr = None
-        self.pid = None
-        self.returncode = None
-        
-        self.connection = self._transport.client_get_connection()
-        
-        self._transport.client_send(self.connection, args)
+class Proxy(object):
+    def __init__(self, name):
+        self.name = name
     
-    def communicate(self, input=None):
-        if self.returncode is not None:
-            raise Exception('Already Returned')
-        
-        input = input or ''
-        
-        self._transport.client_send(self.connection, input)
-        
-        data, returncode = self._transport.split_data(self._transport.client_recv(self.connection))
-        
-        self.returncode = int(returncode)
-        self._transport.client_close(self.connection)
-        
-        stdout = []
-        stderr = []
-        
-        for line in data.split(constants.STD_SEP):
-            if constants.STD_ID_SEP in line:
-                std_id, msg = line.split(constants.STD_ID_SEP, 1)
-                if std_id == constants.STDOUT_ID:
-                    stdout.append(msg)
-                if std_id == constants.STDERR_ID:
-                    stderr.append(msg)
-        
-        stdout = ''.join(stdout)
-        stderr = ''.join(stderr)
-        
-        return stdout, stderr
+    def __str__(self):
+        return str(self.name)
+
+
+class ClientProxy(object):
+    def __init__(self, transport, connection, proxy):
+        self.transport = transport
+        self.connection = connection
+        self.proxy = proxy
+    
+    def __getattr__(self, name):
+        ret = self.transport.send_get_request(self.connection, self.proxy, name)
+        if isinstance(ret, Proxy):
+            ret = ClientProxy(self.transport, self.connection, ret)
+        return ret
+    
+    def __call__(self, *args, **kwargs):
+        ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
+        if isinstance(ret, Proxy):
+            ret = ClientProxy(self.transport, self.connection, ret)
+        return ret
+
+
+class Request(object):
+    def __init__(self, method, path, headers, body):
+        self.method = method
+        self.path = path
+        self.headers = headers
+        self.body = body
+
+class Response(object):
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers
+        self.body = body
+
 
 
 def worker_init(*args):
@@ -118,32 +118,52 @@ class BaseTransport(object):
         
         return data, remainder
     
+    def translate_obj(self, exposed_locals, val):
+        if isinstance(val, Proxy):
+            val = exposed_locals[val.name]
+        return val
+    
     def server_handle_client(self, connection):
         connection = self.server_deserialize_connection(connection)
         
         logger.debug('server_handle_client: {}'.format(self.connection_to_string(connection)))
         
-        command_string, process_input = self.split_data(self.server_recv(connection))
+        exposed_locals = {'subprocess': subprocess}
         
-        logger.info('Received command string: {}'.format(command_string))
+        while True:
+            try:
+                 request = self.get_request(connection)
+            except:
+                 break
+            
+            raised = False
+            
+            obj = None
+            
+            if request.method == 'GET':
+                name, attr = request.path.split('.')
+                obj = getattr(exposed_locals[name], attr)
+            
+            elif request.method == 'CALL':
+                name = request.path
+                obj = exposed_locals[name]
+                args, kwargs = pickle.loads(request.body)
+                
+                args = [self.translate_obj(exposed_locals, arg) for arg in args]
+                
+                for key in kwargs:
+                    kwargs[key] = self.translate_obj(exposed_locals, kwargs[key])
+                
+                obj = obj(*args, **kwargs)
+            
+            if not isinstance(obj, (basestring, numbers.Number)):
+                name = uuid.uuid4()
+                exposed_locals[name] = obj
+                obj = Proxy(name)
+            
+            self.send_response(connection, obj, raised=raised)
         
-        process = subprocess.Popen(
-            command_string,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-            close_fds=True
-        )
-        
-        process_input = process_input or None
-        
-        process_stdout, process_stderr = process.communicate(input=process_input)
-        
-        self.server_send_stdout_stderr(connection, process_stdout, process_stderr)
-        
-        self.server_send_returncode(connection, process.returncode)
-        
-        self.server_close(connection)
+        return
     
     def server_accept(self, serverconnection):
         pass
@@ -207,13 +227,129 @@ class BaseTransport(object):
     def client_close(self, connection):
         pass
     
+    def send_request(self, connection, method, path, data=''):
+        CRLF = constants.CRLF
+        msg = ["{method} {path}".format(method=method, path=path)]
+        msg.append(CRLF)
+        
+        msg.append('Content-Length: {}'.format(len(data)))
+        msg.append(CRLF)
+        
+        if data:
+            msg.append(CRLF)
+            msg.append(data)
+        
+        msg = ''.join(msg)
+        
+        self.client_send(connection, msg)
+        
+        resp = self.get_response(connection)
+        
+        return pickle.loads(resp.body)
+    
+    def send_get_request(self, connection, clientproxy, name):
+        return self.send_request(connection, 'GET', clientproxy.name+'.'+name)
+    
+    def send_call_request(self, connection, clientproxy, *args, **kwargs):
+        data = pickle.dumps([args, kwargs])
+        
+        return self.send_request(connection, 'CALL', clientproxy.name, data=data)
+    
+    def recv_algo(self, connection, recv_func):
+        CRLF = constants.CRLF
+        
+        lines = []
+        data = ''
+        
+        content_length = 0
+        
+        while True:
+            new_data = recv_func(connection, 4096)
+            
+            data += new_data
+            
+            if CRLF in data:
+                split_data = data.split(CRLF)
+                lines.extend(split_data[:-1])
+                data = split_data[-1]
+            
+            if lines and content_length is None:
+                for line in lines:
+                    try:
+                        header, val = line.split(': ')
+                        if header.lower() == 'content-length':
+                            content_length = int(val)
+                            break
+                    except ValueError:
+                        pass
+            
+            if content_length == 0 and len(lines) > 1:
+                break
+            
+            if len(lines) > 3 and lines[-1] == '' and lines[-2] == '':
+                # needs length of body, minus already fetched data
+                data += clientsocket.recv(connection, (2+content_length)-len(data))
+                break
+        
+        if data:
+            data = CRLF + data
+        data = CRLF.join(lines) + data
+        
+        try:
+            headers, body = data.split(constants.CRLF+constants.CRLF)
+        except ValueError:
+            headers = data
+            body = ''
+        
+        headers = headers.split(constants.CRLF)
+        first_line = headers[0]
+        headers = headers[1:]
+        
+        headers = [header.split(': ') for header in headers]
+        return first_line, headers, body
+    
+    
+    def get_request(self, connection):
+        first_line, headers, body = self.recv_algo(connection, self.server_recv)
+        
+        method, path = first_line.split(' ', 1)
+        
+        return Request(method, path, headers, body)
+    
+    def send_response(self, connection, obj, raised=False):
+        data = pickle.dumps(obj)
+        
+        msg = ['200 OK' if not raised else '400 Error']
+        msg.append(constants.CRLF)
+        
+        msg.append('Content-Length: {}'.format(len(data)))
+        msg.append(constants.CRLF)
+        
+        if data:
+            msg.append(constants.CRLF)
+            msg.append(data)
+        
+        msg = ''.join(msg)
+        
+        self.server_send(connection, msg)
+    
+    def get_response(self, connection):
+        first_line, headers, body = self.recv_algo(connection, self.client_recv)
+        
+        status = int(first_line.split()[0])
+        
+        return Response(status, headers, body)
+    
     def run_cmd(self, command_string):
-        process = self.Popen(command_string)
+        connection = self.client_get_connection()
+        
+        subprocess = ClientProxy(self, connection, Proxy('subprocess'))
+        
+        process = subprocess.Popen(command_string)
         
         stdout, stderr = process.communicate()
         
-        return process, stdout, stderr
-    
-    def Popen(self, args, *options, **kwargs):
-        return PopenProxy(self, args)
+        returncode = process.returncode
+        
+        return process, stdout, stderr, returncode
 

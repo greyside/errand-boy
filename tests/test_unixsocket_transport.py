@@ -1,8 +1,10 @@
+import pickle
+
 import errand_boy
 from errand_boy.transports import base, unixsocket
 
 from .base import mock, BaseTestCase
-from .data import commands, get_command_data, get_command_transfer_data
+from .data import commands, get_command_data, get_command_transfer_data, get_req, get_resp
 
 
 class UNIXSocketTransportClientTestCase(BaseTestCase):
@@ -14,10 +16,25 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
             
             cmd = 'ls -al'
             
-            data = get_command_data(cmd)
-            recv_data = get_command_transfer_data(cmd)
+            stdout, stderr, returncode = get_command_data(cmd)
             
-            clientsocket.recv.side_effect = iter([recv_data[:1], recv_data[1:],])
+            requests = [
+                get_req('GET', 'subprocess.Popen'),
+                get_req('CALL', 'obj1', [(cmd,), {}]),
+                get_req('GET', 'obj2.communicate'),
+                get_req('CALL', 'obj3', [tuple(), {}]),
+                get_req('GET', 'obj2.returncode'),
+            ]
+            
+            responses = [
+                get_resp('200 OK', base.Proxy('obj1')),
+                get_resp('200 OK', base.Proxy('obj2')),
+                get_resp('200 OK', base.Proxy('obj3')),
+                get_resp('200 OK', (stdout, stderr,)),
+                get_resp('200 OK', returncode),
+            ]
+            
+            clientsocket.recv.side_effect = iter(responses)
             
             socket.socket.return_value = clientsocket
             
@@ -26,16 +43,15 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
         self.assertEqual(clientsocket.connect.call_count, 1)
         self.assertEqual(clientsocket.connect.call_args_list[0][0][0], '/tmp/errand-boy')
         
-        self.assertEqual(clientsocket.sendall.call_count, 2)
-        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], cmd+'\r\n\r\n')
-        self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n\r\n')
+        self.assertEqual(clientsocket.sendall.call_count, len(responses))
+        for i, request in enumerate(requests):
+            self.assertEqual(clientsocket.sendall.call_args_list[i][0][0], request)
         
-        self.assertEqual(clientsocket.recv.call_count, 2)
+        self.assertEqual(clientsocket.recv.call_count, len(requests))
         
-        self.assertEqual(result[0].returncode, data[2])
-        
-        self.assertEqual(result[1], data[0])
-        self.assertEqual(result[2], data[1])
+        self.assertEqual(result[1], stdout)
+        self.assertEqual(result[2], stderr)
+        self.assertEqual(result[3], returncode)
 
 
 class UNIXSocketTransportServerTestCase(BaseTestCase):
@@ -46,22 +62,42 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 self.reduce_socket_patcher as reduce_socket,\
                 self.rebuild_socket_patcher as rebuild_socket,\
                 self.multiprocessing_patcher as multiprocessing,\
-                self.subprocess_patcher as subprocess:
+                self.subprocess_patcher as subprocess,\
+                self.uuid_patcher as uuid:
             
             serversocket = mock.Mock()
             
+            
             cmd = 'ls -al'
             
-            stdout, stderr = '', ''
+            stdout, stderr, returncode = get_command_data(cmd)
             
             process = mock.Mock()
             process.communicate.return_value = stdout, stderr
-            process.returncode = 0
+            process.returncode = returncode
             
             subprocess.Popen.return_value = process
             
+            uuid.side_effect = ('obj%s' % i for i in xrange(1, 10))
+            
+            requests = [
+                get_req('GET', 'subprocess.Popen'),
+                get_req('CALL', 'obj1', [(cmd,), {}]),
+                get_req('GET', 'obj2.communicate'),
+                get_req('CALL', 'obj3', [tuple(), {}]),
+                get_req('GET', 'obj2.returncode'),
+            ]
+            
+            responses = [
+                get_resp('200 OK', base.Proxy('obj1')),
+                get_resp('200 OK', base.Proxy('obj2')),
+                get_resp('200 OK', base.Proxy('obj3')),
+                get_resp('200 OK', base.Proxy('obj4')),
+                get_resp('200 OK', returncode),
+            ]
+            
             clientsocket = mock.Mock()
-            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n',])
+            clientsocket.recv.side_effect = iter(requests)
             
             serversocket.accept.return_value = clientsocket, ''
             
@@ -89,17 +125,14 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
         self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, 7)
+        self.assertEqual(clientsocket.recv.call_count, len(requests)+1)
         
         self.assertEqual(subprocess.Popen.call_count, 1)
         self.assertEqual(subprocess.Popen.call_args_list[0][0][0], cmd)
         
-        self.assertEqual(clientsocket.sendall.call_count, 3)
-        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n0:')
-        self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n1:')
-        self.assertEqual(clientsocket.sendall.call_args_list[2][0][0], '\r\n\r\n0\r\n\r\n')
-        
-        self.assertEqual(clientsocket.close.call_count, 1)
+        self.assertEqual(clientsocket.sendall.call_count, len(responses))
+        for i, response in enumerate(responses):
+            self.assertEqual(clientsocket.sendall.call_args_list[i][0][0], response)
     
     def test_max_accepts_zero(self):
         transport = unixsocket.UNIXSocketTransport()
@@ -108,24 +141,44 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 self.reduce_socket_patcher as reduce_socket,\
                 self.rebuild_socket_patcher as rebuild_socket,\
                 self.multiprocessing_patcher as multiprocessing,\
-                self.subprocess_patcher as subprocess:
+                self.subprocess_patcher as subprocess,\
+                self.uuid_patcher as uuid:
             
             serversocket = mock.Mock()
             
+            
             cmd = 'ls -al'
             
-            stdout, stderr = '', ''
+            stdout, stderr, returncode = get_command_data(cmd)
             
             process = mock.Mock()
             process.communicate.return_value = stdout, stderr
-            process.returncode = 0
+            process.returncode = returncode
             
             subprocess.Popen.return_value = process
             
-            clientsocket = mock.Mock()
-            clientsocket.recv.side_effect = iter([cmd[:2], cmd[2:], '\r', '\n\r', '\nfoo', 'bar', '\r\n\r\n',])
+            uuid.side_effect = ('obj%s' % i for i in xrange(1, 10))
             
-            serversocket.accept.return_value = clientsocket, ''
+            requests = [
+                get_req('GET', 'subprocess.Popen'),
+                get_req('CALL', 'obj1', [(cmd,), {}]),
+                get_req('GET', 'obj2.communicate'),
+                get_req('CALL', 'obj3', [tuple(), {}]),
+                get_req('GET', 'obj2.returncode'),
+            ]
+            
+            responses = [
+                get_resp('200 OK', base.Proxy('obj1')),
+                get_resp('200 OK', base.Proxy('obj2')),
+                get_resp('200 OK', base.Proxy('obj3')),
+                get_resp('200 OK', base.Proxy('obj4')),
+                get_resp('200 OK', returncode),
+            ]
+            
+            clientsocket = mock.Mock()
+            clientsocket.recv.side_effect = iter(requests)
+            
+            serversocket.accept.side_effect = iter([(clientsocket, '',)])
             
             socket.socket.return_value = serversocket
             
@@ -150,20 +203,17 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
         self.assertEqual(serversocket.listen.call_count, 1)
         self.assertEqual(serversocket.listen.call_args_list[0][0][0], 5)
         
-        self.assertEqual(reduce_socket.call_count, 2)
+        self.assertEqual(reduce_socket.call_count, 1)
         self.assertEqual(reduce_socket.call_args_list[0][0][0], clientsocket)
         
-        self.assertEqual(rebuild_socket.call_count, 2)
+        self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, 8)
+        self.assertEqual(clientsocket.recv.call_count, len(requests)+1)
         
         self.assertEqual(subprocess.Popen.call_count, 1)
         self.assertEqual(subprocess.Popen.call_args_list[0][0][0], cmd)
         
-        self.assertEqual(clientsocket.sendall.call_count, 3)
-        self.assertEqual(clientsocket.sendall.call_args_list[0][0][0], '\r\n0:')
-        self.assertEqual(clientsocket.sendall.call_args_list[1][0][0], '\r\n1:')
-        self.assertEqual(clientsocket.sendall.call_args_list[2][0][0], '\r\n\r\n0\r\n\r\n')
-        
-        self.assertEqual(clientsocket.close.call_count, 1)
+        self.assertEqual(clientsocket.sendall.call_count, len(responses))
+        for i, response in enumerate(responses):
+            self.assertEqual(clientsocket.sendall.call_args_list[i][0][0], response)

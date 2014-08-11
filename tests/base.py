@@ -12,6 +12,7 @@ class BaseTestCase(unittest.TestCase):
     subprocess_patcher = mock.patch.object(base, 'subprocess', autospec=True)
     multiprocessing_patcher = mock.patch.object(base, 'multiprocessing', autospec=True)
     sys_patcher = mock.patch.object(run, 'sys', autospec=True)
+    uuid_patcher = mock.patch.object(base.uuid, 'uuid4', autospec=True)
     
     UNIXSocketTransport_patcher = mock.patch.object(unixsocket, 'UNIXSocketTransport', autospec=True)
     socket_patcher = mock.patch.object(unixsocket, 'socket', autospec=True)
