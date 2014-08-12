@@ -4,6 +4,7 @@ import numbers
 import pickle
 import signal
 import subprocess
+import six
 import sys
 import uuid
 
@@ -22,19 +23,27 @@ except ImportError:
 
 class Proxy(object):
     def __init__(self, name):
+        if hasattr(name, 'decode'):
+            name = name.decode('utf-8')
         self.name = name
     
     def __str__(self):
-        return str(self.name)
+        return six.u(self.name)
 
 
 class ClientProxy(object):
+    _patch_functions = ['next', '__next__', '__iter__']
+    
     def __init__(self, transport, connection, proxy):
         self.transport = transport
         self.connection = connection
         self.proxy = proxy
-        self._next = None
-        self.___iter__ = None
+        
+        self._cache = {}
+        
+        for name in self._patch_functions:
+            self._cache[name] = None
+    
     
     def __getattr__(self, name):
         ret = self.transport.send_get_request(self.connection, self.proxy, name)
@@ -44,17 +53,30 @@ class ClientProxy(object):
     
     @property
     def next(self):
-        if self._next:
-            return self._next
-        self._next = self.__getattr__('next')
-        return self._next
+        name = 'next'
+        val = self._cache[name]
+        if val:
+            return val
+        self._cache[name] = self.__getattr__(name)
+        return self._cache[name]
+    
+    @property
+    def __next__(self):
+        name = '__next__'
+        val = self._cache[name]
+        if val:
+            return val
+        self._cache[name] = self.__getattr__(name)
+        return self._cache[name]
     
     @property
     def __iter__(self):
-        if self.___iter__:
-            return self.___iter__
-        self.___iter__ = self.__getattr__('__iter__')
-        return self.___iter__
+        name = '__iter__'
+        val = self._cache[name]
+        if val:
+            return val
+        self._cache[name] = self.__getattr__(name)
+        return self._cache[name]
     
     def __call__(self, *args, **kwargs):
         ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
@@ -75,7 +97,6 @@ class Response(object):
         self.status = status
         self.headers = headers
         self.body = body
-
 
 
 def worker_init(*args):
@@ -119,8 +140,8 @@ class BaseTransport(object):
         return val
     
     def server_serialize(self, exposed_locals, obj):
-        if not isinstance(obj, (basestring, numbers.Number, BaseException)):
-            name = str(uuid.uuid4())
+        if not isinstance(obj, six.string_types+(numbers.Number, BaseException)):
+            name = six.text_type(uuid.uuid4())
             exposed_locals[name] = obj
             obj = Proxy(name)
         return obj
@@ -232,21 +253,32 @@ class BaseTransport(object):
     def client_close(self, connection):
         pass
     
-    def send_request(self, connection, method, path, data=''):
+    def send_algo(self, connection, send_func, first_line, headers=None, body=None):
         CRLF = constants.CRLF
-        msg = ["{method} {path}".format(method=method, path=path)]
+        msg = [first_line]
         msg.append(CRLF)
         
-        msg.append('Content-Length: {}'.format(len(data)))
+        if headers:
+            for name, val in headers:
+                msg.append('{}: {}'.format(name, val))
+                msg.append(CRLF)
+        
+        msg.append('Content-Length: {}'.format(len(body)))
         msg.append(CRLF)
         
-        if data:
+        if body:
             msg.append(CRLF)
-            msg.append(data)
+            msg.append(body)
         
-        msg = ''.join(msg)
+        msg = [s.encode('utf-8') if hasattr(s, 'encode') else s for s in msg]
         
-        self.client_send(connection, msg)
+        msg = b''.join(msg)
+        
+        return send_func(connection, msg)
+    
+    def send_request(self, connection, method, path, body=''):
+        first_line = "{method} {path}".format(method=method, path=path)
+        self.send_algo(connection, self.client_send, first_line, headers=None, body=body)
         
         resp = self.get_response(connection)
         
@@ -261,15 +293,15 @@ class BaseTransport(object):
         return self.send_request(connection, 'GET', clientproxy.name+'.'+name)
     
     def send_call_request(self, connection, clientproxy, *args, **kwargs):
-        data = pickle.dumps([args, kwargs])
+        body = pickle.dumps([args, kwargs])
         
-        return self.send_request(connection, 'CALL', clientproxy.name, data=data)
+        return self.send_request(connection, 'CALL', clientproxy.name, body=body)
     
     def recv_algo(self, connection, recv_func):
         CRLF = constants.CRLF
         
         lines = []
-        data = ''
+        data = b''
         
         content_length = 0
         
@@ -286,7 +318,7 @@ class BaseTransport(object):
             if lines and content_length is None:
                 for line in lines:
                     try:
-                        header, val = line.split(': ')
+                        header, val = line.split(b': ')
                         if header.lower() == 'content-length':
                             content_length = int(val)
                             break
@@ -309,9 +341,10 @@ class BaseTransport(object):
             headers, body = data.split(constants.CRLF+constants.CRLF)
         except ValueError:
             headers = data
-            body = ''
+            body = b''
         
         headers = headers.split(constants.CRLF)
+        headers = [header.decode('utf-8') for header in headers]
         first_line = headers[0]
         headers = headers[1:]
         
@@ -327,21 +360,11 @@ class BaseTransport(object):
         return Request(method, path, headers, body)
     
     def send_response(self, connection, obj, raised=False):
-        data = pickle.dumps(obj)
+        body = pickle.dumps(obj)
         
-        msg = ['200 OK' if not raised else '400 Error']
-        msg.append(constants.CRLF)
+        first_line = '200 OK' if not raised else '400 Error'
         
-        msg.append('Content-Length: {}'.format(len(data)))
-        msg.append(constants.CRLF)
-        
-        if data:
-            msg.append(constants.CRLF)
-            msg.append(data)
-        
-        msg = ''.join(msg)
-        
-        self.server_send(connection, msg)
+        return self.send_algo(connection, self.server_send, first_line, body=body)
     
     def get_response(self, connection):
         first_line, headers, body = self.recv_algo(connection, self.client_recv)

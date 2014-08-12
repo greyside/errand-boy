@@ -1,10 +1,11 @@
 import pickle
+import six
 
 import errand_boy
 from errand_boy.transports import base, unixsocket
 
 from .base import mock, BaseTestCase
-from .data import commands, get_command_data, get_command_transfer_data, get_req, get_resp
+from .data import commands, get_command_data, get_req, get_resp
 
 
 class UNIXSocketTransportClientTestCase(BaseTestCase):
@@ -25,7 +26,7 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
                 get_req('CALL', 'obj3', [tuple(), {}]),
                 get_req('GET', 'obj4.__iter__'),
                 get_req('CALL', 'obj5', [tuple(), {}]),
-                get_req('GET', 'obj6.next'),
+                get_req('GET', 'obj6.next' if six.PY2 else 'obj6.__next__'),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
@@ -90,7 +91,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
             
             subprocess.Popen.return_value = process
             
-            uuid.side_effect = ('obj%s' % i for i in xrange(1, 10))
+            uuid.side_effect = ('obj%s' % i for i in six.moves.range(1, 20))
             
             requests = [
                 get_req('GET', 'subprocess.Popen'),
@@ -99,7 +100,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 get_req('CALL', 'obj3', [tuple(), {}]),
                 get_req('GET', 'obj4.__iter__'),
                 get_req('CALL', 'obj5', [tuple(), {}]),
-                get_req('GET', 'obj6.next'),
+                get_req('GET', 'obj6.next' if six.PY2 else 'obj6.__next__'),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
@@ -181,7 +182,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
             
             subprocess.Popen.return_value = process
             
-            uuid.side_effect = ('obj%s' % i for i in xrange(1, 10))
+            uuid.side_effect = ('obj%s' % i for i in six.moves.range(1, 20))
             
             requests = [
                 get_req('GET', 'subprocess.Popen'),

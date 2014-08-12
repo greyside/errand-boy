@@ -27,7 +27,7 @@ setup(
     download_url='https://github.com/SeanHayes/errand-boy',
     license='BSD',
     packages=find_packages(),
-    install_requires=['eventlet'],
+    install_requires=['eventlet', 'six'],
     tests_require=[
         'mock',
     ],

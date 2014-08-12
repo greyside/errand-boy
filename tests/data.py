@@ -20,11 +20,6 @@ drwxrwxr-x  2 me me 4096 Aug  5 10:48 tests
 }
 
 
-def get_command_transfer_data(cmd):
-    result = commands[cmd]
-    return ''.join([constants.STDOUT_PREFIX+stdout+constants.STDERR_PREFIX+stderr for stdout, stderr in result[0]]) + '\r\n\r\n' + str(result[1]) + '\r\n\r\n'
-
-
 def get_command_data(cmd):
     result = commands[cmd]
     
@@ -36,15 +31,15 @@ def get_req(method, path, obj=None):
     if obj is not None:
         obj = pickle.dumps(obj)
         
-        return "%s %s\r\nContent-Length: %s\r\n\r\n%s" % (method, path, len(obj), obj)
+        return ("%s %s\r\nContent-Length: %s\r\n\r\n" % (method, path, len(obj))).encode('utf-8') + obj
     else:
-        return "%s %s\r\nContent-Length: 0\r\n" % (method, path,)
+        return ("%s %s\r\nContent-Length: 0\r\n" % (method, path,)).encode('utf-8')
 
 def get_resp(status, obj=None):
     if obj is not None:
         obj = pickle.dumps(obj)
         
-        return "%s\r\nContent-Length: %s\r\n\r\n%s" % (status, len(obj), obj)
+        return ("%s\r\nContent-Length: %s\r\n\r\n" % (status, len(obj))).encode('utf-8') + obj
     else:
-        return "%s\r\nContent-Length: 0\r\n" % (status,)
+        return ("%s\r\nContent-Length: 0\r\n" % (status,)).encode('utf-8')
 
