@@ -22,7 +22,10 @@ class MockTransport(BaseTransport):
         in_conn, out_conn = connection
         eventlet.sleep(0)
         
-        return in_conn.pop(0)
+        try:
+            return in_conn.pop(0)
+        except IndexError:
+            return b''
     
     def server_send(self, connection, data):
         in_conn, out_conn = connection
@@ -46,14 +49,19 @@ class MockTransport(BaseTransport):
         in_conn, out_conn = connection
         eventlet.sleep(0)
         
-        return out_conn.pop(0)
+        try:
+            return out_conn.pop(0)
+        except IndexError:
+            return b''
     
     def run_cmd(self, command_string):
         connection = self.server_accept(None)
         
-        eventlet.spawn(self.server_handle_client, connection)
+        greenthread = eventlet.spawn(self.server_handle_client, connection)
         
         ret = eventlet.spawn(super(MockTransport, self).run_cmd, command_string)
+        
+        greenthread.wait()
         
         return ret.wait()
         

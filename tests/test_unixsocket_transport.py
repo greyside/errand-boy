@@ -33,6 +33,7 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('GET', 'obj2.returncode'),
+                b'',
             ]
             
             responses = [
@@ -60,12 +61,12 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
         self.assertEqual(clientsocket.connect.call_count, 1)
         self.assertEqual(clientsocket.connect.call_args_list[0][0][0], '/tmp/errand-boy')
         
-        self.assertEqual(clientsocket.sendall.call_count, len(responses))
+        self.assertEqual(clientsocket.sendall.call_count, len(requests)-1)
         
-        for i, request in enumerate(requests):
+        for i, request in enumerate(requests[:-1]):
             self.assertEqual(clientsocket.sendall.call_args_list[i][0][0], request)
         
-        self.assertEqual(clientsocket.recv.call_count, len(requests))
+        self.assertEqual(clientsocket.recv.call_count, len(responses))
         
         self.assertEqual(result[0], stdout)
         self.assertEqual(result[1], stderr)
@@ -113,6 +114,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('GET', 'obj2.returncode'),
+                b'',
             ]
             
             responses = [
@@ -160,7 +162,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
         self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, len(requests)+1)
+        self.assertEqual(clientsocket.recv.call_count, len(requests))
         
         self.assertEqual(mock_subprocess.Popen.call_count, 1)
         self.assertEqual(mock_subprocess.Popen.call_args_list[0][0][0], cmd)
@@ -209,6 +211,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('GET', 'obj2.returncode'),
+                b'',
             ]
             
             responses = [
@@ -261,7 +264,7 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
         self.assertEqual(rebuild_socket.call_count, 1)
         self.assertEqual(rebuild_socket.call_args_list[0][0], reduce_socket.return_value[1])
         
-        self.assertEqual(clientsocket.recv.call_count, len(requests)+1)
+        self.assertEqual(clientsocket.recv.call_count, len(requests))
         
         self.assertEqual(mock_subprocess.Popen.call_count, 1)
         self.assertEqual(mock_subprocess.Popen.call_args_list[0][0][0], cmd)

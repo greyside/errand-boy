@@ -22,6 +22,10 @@ except ImportError:
     setproctitle = lambda title: None
 
 
+class DisconnectedError(Exception):
+    pass
+
+
 class ClientSession(object):
     def __init__(self, transport):
         self.transport = transport
@@ -176,10 +180,10 @@ class BaseTransport(object):
         exposed_locals = {'subprocess': subprocess}
         
         while True:
-            # TODO: need to close connections when client not listening
+            # need to close connection when client not listening
             try:
                  request = self.get_request(connection)
-            except:
+            except DisconnectedError:
                  break
             
             raised = False
@@ -331,6 +335,9 @@ class BaseTransport(object):
         
         while True:
             new_data = recv_func(connection, 4096)
+            
+            if not new_data:
+                raise DisconnectedError()
             
             data += new_data
             
