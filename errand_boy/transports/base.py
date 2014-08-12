@@ -1,3 +1,4 @@
+import collections
 import logging
 import multiprocessing
 import numbers
@@ -27,7 +28,7 @@ class ClientSession(object):
         self.connection = transport.client_get_connection()
     
     def __getattr__(self, name):
-        return ClientProxy(self.transport, self.connection, Proxy(name))
+        return RemoteObjWrapper(self.transport, self.connection, RemoteObjRef(name))
     
     def __enter__(self):
         return self
@@ -42,23 +43,23 @@ class ClientSession(object):
         return False
 
 
-class Proxy(object):
+class RemoteObjRef(object):
     def __init__(self, name):
         if hasattr(name, 'decode'):
             name = name.decode('utf-8')
         self.name = name
     
     def __str__(self):
-        return six.u(self.name)
+        return self.name
 
 
-class ClientProxy(object):
+class RemoteObjWrapper(object):
     _patch_functions = ['next', '__next__', '__iter__']
     
-    def __init__(self, transport, connection, proxy):
+    def __init__(self, transport, connection, RemoteObjRef):
         self.transport = transport
         self.connection = connection
-        self.proxy = proxy
+        self.RemoteObjRef = RemoteObjRef
         
         self._cache = {}
         
@@ -66,15 +67,15 @@ class ClientProxy(object):
             self._cache[name] = None
     
     def __getattr__(self, name):
-        ret = self.transport.send_get_request(self.connection, self.proxy, name)
-        if isinstance(ret, Proxy):
-            ret = ClientProxy(self.transport, self.connection, ret)
+        ret = self.transport.send_get_request(self.connection, self.RemoteObjRef, name)
+        if isinstance(ret, RemoteObjRef):
+            ret = RemoteObjWrapper(self.transport, self.connection, ret)
         return ret
     
     def __call__(self, *args, **kwargs):
-        ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
-        if isinstance(ret, Proxy):
-            ret = ClientProxy(self.transport, self.connection, ret)
+        ret = self.transport.send_call_request(self.connection, self.RemoteObjRef, *args, **kwargs)
+        if isinstance(ret, RemoteObjRef):
+            ret = RemoteObjWrapper(self.transport, self.connection, ret)
         return ret
     
     @property
@@ -156,15 +157,15 @@ class BaseTransport(object):
         pass
     
     def translate_obj(self, exposed_locals, val):
-        if isinstance(val, Proxy):
+        if isinstance(val, RemoteObjRef):
             val = exposed_locals[val.name]
         return val
     
     def server_serialize(self, exposed_locals, obj):
-        if not isinstance(obj, six.string_types+(numbers.Number, BaseException)):
+        if obj is not None and not isinstance(obj, six.string_types+(numbers.Number, BaseException)):
             name = six.text_type(uuid.uuid4())
             exposed_locals[name] = obj
-            obj = Proxy(name)
+            obj = RemoteObjRef(name)
         return obj
     
     def server_handle_client(self, connection):
@@ -175,6 +176,7 @@ class BaseTransport(object):
         exposed_locals = {'subprocess': subprocess}
         
         while True:
+            # TODO: need to close connections when client not listening
             try:
                  request = self.get_request(connection)
             except:
@@ -210,7 +212,7 @@ class BaseTransport(object):
             
             self.send_response(connection, obj, raised=raised)
         
-        return
+        self.server_close(connection)
     
     def server_accept(self, serverconnection):
         pass
@@ -310,13 +312,14 @@ class BaseTransport(object):
         
         return obj
     
-    def send_get_request(self, connection, clientproxy, name):
-        return self.send_request(connection, 'GET', clientproxy.name+'.'+name)
+    def send_get_request(self, connection, RemoteObjWrapper, name):
+        return self.send_request(connection, 'GET', RemoteObjWrapper.name+'.'+name)
     
-    def send_call_request(self, connection, clientproxy, *args, **kwargs):
+    def send_call_request(self, connection, RemoteObjWrapper, *args, **kwargs):
+        kwargs = collections.OrderedDict(sorted(kwargs.items(), key=lambda t: t[0]))
         body = pickle.dumps([args, kwargs])
         
-        return self.send_request(connection, 'CALL', clientproxy.name, body=body)
+        return self.send_request(connection, 'CALL', RemoteObjWrapper.name, body=body)
     
     def recv_algo(self, connection, recv_func):
         CRLF = constants.CRLF
@@ -400,11 +403,10 @@ class BaseTransport(object):
         with self.get_session() as session:
             subprocess = session.subprocess
             
-            process = subprocess.Popen(command_string)
+            process = subprocess.Popen(command_string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             stdout, stderr = process.communicate()
             
             returncode = process.returncode
         
-        return process, stdout, stderr, returncode
-
+        return stdout, stderr, returncode

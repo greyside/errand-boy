@@ -15,6 +15,7 @@ def capture(func):
         response = None
         successful = True
         e = None
+        
         try:
             response = func(self, cmd, *args, **kwargs)
         except Exception as e:
@@ -23,7 +24,8 @@ def capture(func):
         total_time = int((time.time() - start_time) * 1000)
         
         if e is None:
-            response_length = len(response[1]) + len(response[2])
+            print 'response: %s' % (response,)
+            response_length = len(response[0]) + len(response[1])
             
             events.request_success.fire(request_type=name, name=cmd, response_time=total_time, response_length=response_length)
         else:

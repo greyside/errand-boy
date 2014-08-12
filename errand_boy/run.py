@@ -12,7 +12,7 @@ parser.add_argument('-t', '--transport', dest='transport', nargs='?',
            default='errand_boy.transports.unixsocket.UNIXSocketTransport',
            help='Python path to the transport to use.')
 parser.add_argument('--pool-size', dest='pool_size', nargs='?', type=int,
-           default=1000,
+           default=10,
            help='Number of worker processes to use.')
 parser.add_argument('--max-accepts', dest='max_accepts', nargs='?', type=int,
            default=1000,
@@ -81,12 +81,12 @@ def main(argv):
             max_accepts=parsed_args.max_accepts
         )
     else:
-        process, stdout, stderr = transport.run_cmd(' '.join(command))
+        stdout, stderr, returncode = transport.run_cmd(' '.join(command))
         
         sys.stdout.write(stdout)
         sys.stderr.write(stderr)
         
-        sys.exit(process.returncode)
+        sys.exit(returncode)
 
 if __name__ == '__main__':
     main(sys.argv)

@@ -1,3 +1,4 @@
+import collections
 import pickle
 
 from errand_boy import constants
@@ -29,6 +30,11 @@ def get_command_data(cmd):
 
 def get_req(method, path, obj=None):
     if obj is not None:
+        try:
+            obj[1] = collections.OrderedDict(sorted(obj[1].items(), key=lambda t: t[0]))
+        except:
+            pass
+        
         obj = pickle.dumps(obj)
         
         return ("%s %s\r\nContent-Length: %s\r\n\r\n" % (method, path, len(obj))).encode('utf-8') + obj
@@ -37,6 +43,11 @@ def get_req(method, path, obj=None):
 
 def get_resp(status, obj=None):
     if obj is not None:
+        try:
+            obj[1] = collections.OrderedDict(sorted(obj[1].items(), key=lambda t: t[0]))
+        except:
+            pass
+        
         obj = pickle.dumps(obj)
         
         return ("%s\r\nContent-Length: %s\r\n\r\n" % (status, len(obj))).encode('utf-8') + obj
