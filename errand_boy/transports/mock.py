@@ -18,16 +18,11 @@ class MockTransport(BaseTransport):
     def server_get_connection(self):
         return None
     
-    def server_recv(self, connection):
+    def server_recv(self, connection, l):
         in_conn, out_conn = connection
         eventlet.sleep(0)
         
-        data = []
-        
-        while in_conn:
-            data.append(in_conn.pop(0))
-        
-        return ''.join(data)
+        return in_conn.pop(0)
     
     def server_send(self, connection, data):
         in_conn, out_conn = connection
@@ -47,24 +42,18 @@ class MockTransport(BaseTransport):
         in_conn, out_conn = connection
         in_conn.append(data)
     
-    def client_recv(self, connection):
+    def client_recv(self, connection, l):
         in_conn, out_conn = connection
         eventlet.sleep(0)
         
-        data = []
-        
-        while out_conn:
-            data.append(out_conn.pop(0))
-        
-        return ''.join(data)
+        return out_conn.pop(0)
     
-    def Popen(self, args):
-        
+    def run_cmd(self, command_string):
         connection = self.server_accept(None)
         
         eventlet.spawn(self.server_handle_client, connection)
         
-        ret = eventlet.spawn(super(MockTransport, self).Popen, args)
+        ret = eventlet.spawn(super(MockTransport, self).run_cmd, command_string)
         
         return ret.wait()
         

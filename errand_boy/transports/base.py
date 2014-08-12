@@ -94,29 +94,8 @@ class BaseTransport(object):
     def server_send(self, connection, data):
         pass
     
-    def server_send_returncode(self, connection, data):
-        pass
-    
-    def server_send_stdout_stderr(self, connection, stdout, stderr):
-        self.server_send(connection, constants.STDOUT_PREFIX+stdout)
-        self.server_send(connection, constants.STDERR_PREFIX+stderr)
-    
-    def server_send_returncode(self, connection, returncode):
-        self.server_send(connection, constants.SEP+str(returncode)+constants.SEP)
-    
     def server_close(self, connection):
         pass
-    
-    def split_data(self, data, num=1):
-        data = [s for s in data.split(constants.SEP, num) if s]
-        remainder = ''
-        
-        if len(data) > num:
-            data, remainder = data
-        else:
-            data = data[0]
-        
-        return data, remainder
     
     def translate_obj(self, exposed_locals, val):
         if isinstance(val, Proxy):
@@ -137,13 +116,15 @@ class BaseTransport(object):
                  break
             
             raised = False
-            
             obj = None
             
             if request.method == 'GET':
                 name, attr = request.path.split('.')
-                obj = getattr(exposed_locals[name], attr)
-            
+                try:
+                    obj = getattr(exposed_locals[name], attr)
+                except KeyError as e:
+                    obj = e
+                    raised = True
             elif request.method == 'CALL':
                 name = request.path
                 obj = exposed_locals[name]
@@ -157,7 +138,7 @@ class BaseTransport(object):
                 obj = obj(*args, **kwargs)
             
             if not isinstance(obj, (basestring, numbers.Number)):
-                name = uuid.uuid4()
+                name = str(uuid.uuid4())
                 exposed_locals[name] = obj
                 obj = Proxy(name)
             
@@ -245,7 +226,12 @@ class BaseTransport(object):
         
         resp = self.get_response(connection)
         
-        return pickle.loads(resp.body)
+        obj = pickle.loads(resp.body)
+        
+        if resp.status == 400:
+            raise obj
+        
+        return obj
     
     def send_get_request(self, connection, clientproxy, name):
         return self.send_request(connection, 'GET', clientproxy.name+'.'+name)
