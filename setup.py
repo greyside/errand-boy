@@ -29,7 +29,7 @@ setup(
     packages=find_packages(),
     install_requires=['eventlet', 'six'],
     tests_require=[
-        'mock','ipdb'
+        'mock'
     ],
     include_package_data=True,
     test_suite = test_package_name,
