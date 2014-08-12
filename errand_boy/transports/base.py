@@ -21,6 +21,27 @@ except ImportError:
     setproctitle = lambda title: None
 
 
+class ClientSession(object):
+    def __init__(self, transport):
+        self.transport = transport
+        self.connection = transport.client_get_connection()
+    
+    def __getattr__(self, name):
+        return ClientProxy(self.transport, self.connection, Proxy(name))
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self.transport.client_close(self.connection)
+        except Exception as e:
+            logger.exception(e)
+        
+        # we don't want to hide AttributeErrors, etc. from end user
+        return False
+
+
 class Proxy(object):
     def __init__(self, name):
         if hasattr(name, 'decode'):
@@ -44,9 +65,14 @@ class ClientProxy(object):
         for name in self._patch_functions:
             self._cache[name] = None
     
-    
     def __getattr__(self, name):
         ret = self.transport.send_get_request(self.connection, self.proxy, name)
+        if isinstance(ret, Proxy):
+            ret = ClientProxy(self.transport, self.connection, ret)
+        return ret
+    
+    def __call__(self, *args, **kwargs):
+        ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
         if isinstance(ret, Proxy):
             ret = ClientProxy(self.transport, self.connection, ret)
         return ret
@@ -77,12 +103,6 @@ class ClientProxy(object):
             return val
         self._cache[name] = self.__getattr__(name)
         return self._cache[name]
-    
-    def __call__(self, *args, **kwargs):
-        ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
-        if isinstance(ret, Proxy):
-            ret = ClientProxy(self.transport, self.connection, ret)
-        return ret
 
 
 class Request(object):
@@ -91,6 +111,7 @@ class Request(object):
         self.path = path
         self.headers = headers
         self.body = body
+
 
 class Response(object):
     def __init__(self, status, headers, body):
@@ -351,7 +372,6 @@ class BaseTransport(object):
         headers = [header.split(': ') for header in headers]
         return first_line, headers, body
     
-    
     def get_request(self, connection):
         first_line, headers, body = self.recv_algo(connection, self.server_recv)
         
@@ -373,16 +393,18 @@ class BaseTransport(object):
         
         return Response(status, headers, body)
     
+    def get_session(self):
+        return ClientSession(self)
+    
     def run_cmd(self, command_string):
-        connection = self.client_get_connection()
-        
-        subprocess = ClientProxy(self, connection, Proxy('subprocess'))
-        
-        process = subprocess.Popen(command_string)
-        
-        stdout, stderr = process.communicate()
-        
-        returncode = process.returncode
+        with self.get_session() as session:
+            subprocess = session.subprocess
+            
+            process = subprocess.Popen(command_string)
+            
+            stdout, stderr = process.communicate()
+            
+            returncode = process.returncode
         
         return process, stdout, stderr, returncode
 
