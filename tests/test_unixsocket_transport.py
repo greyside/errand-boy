@@ -23,6 +23,12 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
                 get_req('CALL', 'obj1', [(cmd,), {}]),
                 get_req('GET', 'obj2.communicate'),
                 get_req('CALL', 'obj3', [tuple(), {}]),
+                get_req('GET', 'obj4.__iter__'),
+                get_req('CALL', 'obj5', [tuple(), {}]),
+                get_req('GET', 'obj6.next'),
+                get_req('CALL', 'obj7', [tuple(), {}]),
+                get_req('CALL', 'obj7', [tuple(), {}]),
+                get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('GET', 'obj2.returncode'),
             ]
             
@@ -30,7 +36,13 @@ class UNIXSocketTransportClientTestCase(BaseTestCase):
                 get_resp('200 OK', base.Proxy('obj1')),
                 get_resp('200 OK', base.Proxy('obj2')),
                 get_resp('200 OK', base.Proxy('obj3')),
-                get_resp('200 OK', (stdout, stderr,)),
+                get_resp('200 OK', base.Proxy('obj4')),
+                get_resp('200 OK', base.Proxy('obj5')),
+                get_resp('200 OK', base.Proxy('obj6')),
+                get_resp('200 OK', base.Proxy('obj7')),
+                get_resp('200 OK', stdout),
+                get_resp('200 OK', stderr),
+                get_resp('400 Error', StopIteration()),
                 get_resp('200 OK', returncode),
             ]
             
@@ -85,6 +97,12 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 get_req('CALL', 'obj1', [(cmd,), {}]),
                 get_req('GET', 'obj2.communicate'),
                 get_req('CALL', 'obj3', [tuple(), {}]),
+                get_req('GET', 'obj4.__iter__'),
+                get_req('CALL', 'obj5', [tuple(), {}]),
+                get_req('GET', 'obj6.next'),
+                get_req('CALL', 'obj7', [tuple(), {}]),
+                get_req('CALL', 'obj7', [tuple(), {}]),
+                get_req('CALL', 'obj7', [tuple(), {}]),
                 get_req('GET', 'obj2.returncode'),
             ]
             
@@ -93,6 +111,12 @@ class UNIXSocketTransportServerTestCase(BaseTestCase):
                 get_resp('200 OK', base.Proxy('obj2')),
                 get_resp('200 OK', base.Proxy('obj3')),
                 get_resp('200 OK', base.Proxy('obj4')),
+                get_resp('200 OK', base.Proxy('obj5')),
+                get_resp('200 OK', base.Proxy('obj6')),
+                get_resp('200 OK', base.Proxy('obj7')),
+                get_resp('200 OK', stdout),
+                get_resp('200 OK', stderr),
+                get_resp('400 Error', StopIteration()),
                 get_resp('200 OK', returncode),
             ]
             

@@ -33,12 +33,28 @@ class ClientProxy(object):
         self.transport = transport
         self.connection = connection
         self.proxy = proxy
+        self._next = None
+        self.___iter__ = None
     
     def __getattr__(self, name):
         ret = self.transport.send_get_request(self.connection, self.proxy, name)
         if isinstance(ret, Proxy):
             ret = ClientProxy(self.transport, self.connection, ret)
         return ret
+    
+    @property
+    def next(self):
+        if self._next:
+            return self._next
+        self._next = self.__getattr__('next')
+        return self._next
+    
+    @property
+    def __iter__(self):
+        if self.___iter__:
+            return self.___iter__
+        self.___iter__ = self.__getattr__('__iter__')
+        return self.___iter__
     
     def __call__(self, *args, **kwargs):
         ret = self.transport.send_call_request(self.connection, self.proxy, *args, **kwargs)
@@ -102,6 +118,13 @@ class BaseTransport(object):
             val = exposed_locals[val.name]
         return val
     
+    def server_serialize(self, exposed_locals, obj):
+        if not isinstance(obj, (basestring, numbers.Number, BaseException)):
+            name = str(uuid.uuid4())
+            exposed_locals[name] = obj
+            obj = Proxy(name)
+        return obj
+    
     def server_handle_client(self, connection):
         connection = self.server_deserialize_connection(connection)
         
@@ -135,12 +158,13 @@ class BaseTransport(object):
                 for key in kwargs:
                     kwargs[key] = self.translate_obj(exposed_locals, kwargs[key])
                 
-                obj = obj(*args, **kwargs)
+                try:
+                    obj = obj(*args, **kwargs)
+                except Exception as e:
+                    obj = e
+                    raised = True
             
-            if not isinstance(obj, (basestring, numbers.Number)):
-                name = str(uuid.uuid4())
-                exposed_locals[name] = obj
-                obj = Proxy(name)
+            obj = self.server_serialize(exposed_locals, obj)
             
             self.send_response(connection, obj, raised=raised)
         
