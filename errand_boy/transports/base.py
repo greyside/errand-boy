@@ -32,7 +32,7 @@ class ClientSession(object):
         self.connection = transport.client_get_connection()
     
     def __getattr__(self, name):
-        return RemoteObjWrapper(self.transport, self.connection, RemoteObjRef(name))
+        return RemoteObjWrapper(self, name)
     
     def __enter__(self):
         return self
@@ -60,54 +60,55 @@ class RemoteObjRef(object):
 class RemoteObjWrapper(object):
     _patch_functions = ['next', '__next__', '__iter__']
     
-    def __init__(self, transport, connection, RemoteObjRef):
-        self.transport = transport
-        self.connection = connection
-        self.RemoteObjRef = RemoteObjRef
+    def __init__(self, session, name):
+        self.session = session
+        self.name = name
         
-        self._cache = {}
+        self._property_cache = {}
         
         for name in self._patch_functions:
-            self._cache[name] = None
+            self._property_cache[name] = None
     
     def __getattr__(self, name):
-        ret = self.transport.send_get_request(self.connection, self.RemoteObjRef, name)
+        session = self.session
+        ret = session.transport.send_get_request(session.connection, self.name, name)
         if isinstance(ret, RemoteObjRef):
-            ret = RemoteObjWrapper(self.transport, self.connection, ret)
+            ret = RemoteObjWrapper(session, ret.name)
         return ret
     
     def __call__(self, *args, **kwargs):
-        ret = self.transport.send_call_request(self.connection, self.RemoteObjRef, *args, **kwargs)
+        session = self.session
+        ret = session.transport.send_call_request(session.connection, self.name, *args, **kwargs)
         if isinstance(ret, RemoteObjRef):
-            ret = RemoteObjWrapper(self.transport, self.connection, ret)
+            ret = RemoteObjWrapper(session, ret.name)
         return ret
     
     @property
     def next(self):
         name = 'next'
-        val = self._cache[name]
+        val = self._property_cache[name]
         if val:
             return val
-        self._cache[name] = self.__getattr__(name)
-        return self._cache[name]
+        self._property_cache[name] = self.__getattr__(name)
+        return self._property_cache[name]
     
     @property
     def __next__(self):
         name = '__next__'
-        val = self._cache[name]
+        val = self._property_cache[name]
         if val:
             return val
-        self._cache[name] = self.__getattr__(name)
-        return self._cache[name]
+        self._property_cache[name] = self.__getattr__(name)
+        return self._property_cache[name]
     
     @property
     def __iter__(self):
         name = '__iter__'
-        val = self._cache[name]
+        val = self._property_cache[name]
         if val:
             return val
-        self._cache[name] = self.__getattr__(name)
-        return self._cache[name]
+        self._property_cache[name] = self.__getattr__(name)
+        return self._property_cache[name]
 
 
 class Request(object):
@@ -316,14 +317,14 @@ class BaseTransport(object):
         
         return obj
     
-    def send_get_request(self, connection, RemoteObjWrapper, name):
-        return self.send_request(connection, 'GET', RemoteObjWrapper.name+'.'+name)
+    def send_get_request(self, connection, prefix, name):
+        return self.send_request(connection, 'GET', prefix+'.'+name)
     
-    def send_call_request(self, connection, RemoteObjWrapper, *args, **kwargs):
+    def send_call_request(self, connection, name, *args, **kwargs):
         kwargs = collections.OrderedDict(sorted(kwargs.items(), key=lambda t: t[0]))
         body = pickle.dumps([args, kwargs])
         
-        return self.send_request(connection, 'CALL', RemoteObjWrapper.name, body=body)
+        return self.send_request(connection, 'CALL', name, body=body)
     
     def recv_algo(self, connection, recv_func):
         CRLF = constants.CRLF
