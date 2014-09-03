@@ -1,10 +1,14 @@
 import errno
+import logging
 from multiprocessing import reduction
 import os
 import socket
 
 from .base import BaseTransport
 from .. import constants
+
+
+logger = logging.getLogger(__name__)
 
 
 try:
@@ -40,8 +44,8 @@ class UNIXSocketTransport(BaseTransport):
         
         try:
             os.remove(self.socket_path)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.exception(e)
         
         serversocket.bind(self.socket_path)
         serversocket.listen(self.listen_backlog)
