@@ -23,8 +23,8 @@ errand-boy still uses subprocess.Popen(), but tries to keep a low memory footpri
 
 Further reading:
 
-# http://stackoverflow.com/a/13329386/241955
-# http://stackoverflow.com/a/14942111/241955
+#. http://stackoverflow.com/a/13329386/241955
+#. http://stackoverflow.com/a/14942111/241955
 
 -----
 Setup
@@ -104,5 +104,5 @@ Development
 
 Further reading:
 
-# http://stackoverflow.com/questions/18414020/memory-usage-keep-growing-with-pythons-multiprocessing-pool
+* http://stackoverflow.com/questions/18414020/memory-usage-keep-growing-with-pythons-multiprocessing-pool
 
