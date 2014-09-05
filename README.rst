@@ -58,6 +58,7 @@ Use the client in your code::
 
     from errand_boy.transports.unixsocket import UNIXSocketTransport
     
+    
     errand_boy_transport = UNIXSocketTransport()
     
     stdout, stderr, returncode = errand_boy_transport.run_cmd('ls -al')
@@ -73,15 +74,30 @@ Use a subprocess.Popen-like interface::
     
     errand_boy_transport = UNIXSocketTransport()
     
+    # Attribute accesses and function calls on objects retrieved via a session
+    # result in a call to the errand-boy server, unless that object is a string
+    # or number type.
     with errand_boy_transport.get_session() as session:
-        process = session.subprocess.Popen('ls -al', stdout=session.subprocess.PIPE, stderr=session.subprocess.PIPE, shell=True, close_fds=True)
+        subprocess = session.subprocess
         
+        # Here, subprocess.Popen is actually a reference to the actual objects
+        # on the errand-boy server. subprocess.PIPE is an int.
+        process = subprocess.Popen('ls -al', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, close_fds=True)
+        
+        # Here, process_stdout and process_stderr are strings and returncode is
+        # an int, so their actual values are returned instead of references to
+        # the remote objects. This means it's safe to use these values later on
+        # outside of the current session.
         process_stdout, process_stderr = process.communicate()
         returncode = process.returncode
     
     print stdout
     print stderr
     print returncode
+    
+    # Since the session has been closed, trying this will result in an error:
+    print process.returncode
+    # raised errand_boy.exceptions.SessionClosedError()
 
 Run load tests::
 

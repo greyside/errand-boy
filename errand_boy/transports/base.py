@@ -11,6 +11,7 @@ import uuid
 
 from .. import constants
 from .. import __version__
+from ..exceptions import DisconnectedError, SessionClosedError, UnknownMethodError
 
 
 logger = logging.getLogger(__name__)
@@ -22,22 +23,25 @@ except ImportError:
     setproctitle = lambda title: None
 
 
-class DisconnectedError(Exception):
-    pass
-
-
 class ClientSession(object):
     def __init__(self, transport):
         self.transport = transport
         self.connection = transport.client_get_connection()
+        self._closed = True
+    
+    @property
+    def closed(self):
+        return self._closed
     
     def __getattr__(self, name):
         return RemoteObjWrapper(self, name)
     
     def __enter__(self):
+        self._closed = False
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self._closed = True
         try:
             self.transport.client_close(self.connection)
         except Exception as e:
@@ -69,19 +73,31 @@ class RemoteObjWrapper(object):
         for name in self._patch_functions:
             self._property_cache[name] = None
     
-    def __getattr__(self, name):
+    def _send(self, method, *args, **kwargs):
         session = self.session
-        ret = session.transport.send_get_request(session.connection, self.name, name)
+        
+        if session.closed:
+            raise SessionClosedError()
+        
+        if method == 'GET':
+            func = session.transport.send_get_request
+        elif method == 'CALL':
+            func = session.transport.send_call_request
+        else:
+            raise UnknownMethodError(method)
+        
+        ret = func(session.connection, self.name, *args, **kwargs)
+        
         if isinstance(ret, RemoteObjRef):
             ret = RemoteObjWrapper(session, ret.name)
+        
         return ret
     
+    def __getattr__(self, name):
+        return self._send('GET', name)
+    
     def __call__(self, *args, **kwargs):
-        session = self.session
-        ret = session.transport.send_call_request(session.connection, self.name, *args, **kwargs)
-        if isinstance(ret, RemoteObjRef):
-            ret = RemoteObjWrapper(session, ret.name)
-        return ret
+        return self._send('CALL', *args, **kwargs)
     
     @property
     def next(self):
