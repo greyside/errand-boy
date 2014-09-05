@@ -228,7 +228,7 @@ class BaseTransport(object):
     def server_serialize_connection(self, connection):
         return connection
     
-    def run_server(self, pool_size=10, max_accepts=1000):
+    def run_server(self, pool_size=10, max_accepts=5000, max_child_tasks=100):
         setproctitle('errand-boy master process')
         
         serverconnection = self.server_get_connection()
@@ -236,8 +236,9 @@ class BaseTransport(object):
         logger.info('Accepting connections: {}'.format(self.connection_to_string(serverconnection)))
         logger.info('pool_size: {}'.format(pool_size))
         logger.info('max_accepts: {}'.format(max_accepts))
+        logger.info('max_child_tasks: {}'.format(max_child_tasks))
         
-        pool = multiprocessing.Pool(pool_size, worker_init)
+        pool = multiprocessing.Pool(pool_size, worker_init, tuple(), max_child_tasks)
         
         connections = []
         

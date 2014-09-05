@@ -58,27 +58,30 @@ Use the client in your code::
 
     from errand_boy.transports.unixsocket import UNIXSocketTransport
     
-    transport = UNIXSocketTransport()
+    errand_boy_transport = UNIXSocketTransport()
     
-    process, stdout, stderr = transport.run_cmd('ls -al')
+    stdout, stderr, returncode = errand_boy_transport.run_cmd('ls -al')
     
-    print process.returncode
     print stdout
     print stderr
+    print returncode
 
 Use a subprocess.Popen-like interface::
 
     from errand_boy.transports.unixsocket import UNIXSocketTransport
     
-    transport = UNIXSocketTransport()
     
-    process = transport.Popen('ls -al')
+    errand_boy_transport = UNIXSocketTransport()
     
-    stdout, stderr = process.communicate(input='foo')
+    with errand_boy_transport.get_session() as session:
+        process = session.subprocess.Popen('ls -al', stdout=session.subprocess.PIPE, stderr=session.subprocess.PIPE, shell=True, close_fds=True)
+        
+        process_stdout, process_stderr = process.communicate()
+        returncode = process.returncode
     
-    print process.returncode
     print stdout
     print stderr
+    print returncode
 
 Run load tests::
 
@@ -92,11 +95,7 @@ Run load tests::
 Does it work in other languages?
 --------------------------------
 
-It shouldn't be too diffcult to write client libraries in other languages. You just need to:
-
-1. Establish a connection to the server's socket.
-2. Send the command you wish to execute as a string followed by ``\r\n\r\n``. Then send your input or an empty string followed by ``\r\n\r\n``.
-3. Receive data back from the connection until the server stops sending back data. The server will close the connection when it's done.
+The client/server use an HTTP-inspired protocol, but the data that's sent back and forth is currently serialized using Python's Pickle format. Support could be added for other serialization types though.
 
 -----------
 Development

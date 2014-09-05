@@ -15,8 +15,11 @@ parser.add_argument('--pool-size', dest='pool_size', nargs='?', type=int,
            default=10,
            help='Number of worker processes to use.')
 parser.add_argument('--max-accepts', dest='max_accepts', nargs='?', type=int,
-           default=1000,
+           default=5000,
            help='Max number of connections the server will accept.')
+parser.add_argument('--max-child-tasks', dest='max_child_tasks', nargs='?', type=int,
+           default=100,
+           help='Max number of tasks each child process will handle before being replaced.')
 parser.add_argument('command', nargs=argparse.REMAINDER)
 parser.add_argument('--version', action='version', version=__version__)
 
@@ -78,7 +81,8 @@ def main(argv):
         
         transport.run_server(
             pool_size=parsed_args.pool_size,
-            max_accepts=parsed_args.max_accepts
+            max_accepts=parsed_args.max_accepts,
+            max_child_tasks=parsed_args.max_child_tasks
         )
     else:
         stdout, stderr, returncode = transport.run_cmd(' '.join(command))
