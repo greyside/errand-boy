@@ -99,32 +99,24 @@ class RemoteObjWrapper(object):
     def __call__(self, *args, **kwargs):
         return self._send('CALL', *args, **kwargs)
     
-    @property
-    def next(self):
-        name = 'next'
+    def _get_prop(self, name):
         val = self._property_cache[name]
         if val:
             return val
         self._property_cache[name] = self.__getattr__(name)
         return self._property_cache[name]
+    
+    @property
+    def next(self):
+        return self._get_prop('next')
     
     @property
     def __next__(self):
-        name = '__next__'
-        val = self._property_cache[name]
-        if val:
-            return val
-        self._property_cache[name] = self.__getattr__(name)
-        return self._property_cache[name]
+        return self._get_prop('__next__')
     
     @property
     def __iter__(self):
-        name = '__iter__'
-        val = self._property_cache[name]
-        if val:
-            return val
-        self._property_cache[name] = self.__getattr__(name)
-        return self._property_cache[name]
+        return self._get_prop('__iter__')
 
 
 class Request(object):
@@ -166,16 +158,16 @@ class BaseTransport(object):
         return repr(connection)
     
     def server_get_connection(self):
-        pass
+        raise NotImplementedError()
     
     def server_recv(self, connection):
-        pass
+        raise NotImplementedError()
     
     def server_send(self, connection, data):
-        pass
+        raise NotImplementedError()
     
     def server_close(self, connection):
-        pass
+        raise NotImplementedError()
     
     def translate_obj(self, exposed_locals, val):
         if isinstance(val, RemoteObjRef):
@@ -215,7 +207,12 @@ class BaseTransport(object):
                     raised = True
             elif request.method == 'CALL':
                 name = request.path
-                obj = exposed_locals[name]
+                try:
+                    obj = exposed_locals[name]
+                except KeyError as e:
+                    obj = e
+                    raised = True
+                
                 args, kwargs = pickle.loads(request.body)
                 
                 args = [self.translate_obj(exposed_locals, arg) for arg in args]
@@ -236,7 +233,7 @@ class BaseTransport(object):
         self.server_close(connection)
     
     def server_accept(self, serverconnection):
-        pass
+        raise NotImplementedError()
     
     def server_deserialize_connection(self, connection):
         return connection
@@ -287,16 +284,16 @@ class BaseTransport(object):
             pool.join()
     
     def client_get_connection(self):
-        pass
-    
-    def client_send(self, connection, command_string):
-        pass
+        raise NotImplementedError()
     
     def client_recv(self, connection):
-        pass
+        raise NotImplementedError()
+    
+    def client_send(self, connection, command_string):
+        raise NotImplementedError()
     
     def client_close(self, connection):
-        pass
+        raise NotImplementedError()
     
     def send_algo(self, connection, send_func, first_line, headers=None, body=None):
         CRLF = constants.CRLF
@@ -349,7 +346,7 @@ class BaseTransport(object):
         lines = []
         data = b''
         
-        content_length = 0
+        content_length = None
         
         while True:
             new_data = recv_func(connection, 4096)
@@ -368,7 +365,7 @@ class BaseTransport(object):
                 for line in lines:
                     try:
                         header, val = line.split(b': ')
-                        if header.lower() == 'content-length':
+                        if header.lower() == b'content-length':
                             content_length = int(val)
                             break
                     except ValueError:
@@ -377,9 +374,12 @@ class BaseTransport(object):
             if content_length == 0 and len(lines) > 1:
                 break
             
-            if len(lines) > 3 and lines[-1] == '' and lines[-2] == '':
+            if len(lines) > 2 and lines[-1] == b'':
                 # needs length of body, minus already fetched data
-                data += clientsocket.recv(connection, (2+content_length)-len(data))
+                remaining_len = content_length - len(data)
+                
+                if remaining_len:
+                    data += recv_func(connection, remaining_len)
                 break
         
         if data:

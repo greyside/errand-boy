@@ -1,4 +1,3 @@
-import errno
 import logging
 from multiprocessing import reduction
 import os
@@ -94,5 +93,5 @@ class UNIXSocketTransport(BaseTransport):
     def client_close(self, connection):
         try:
             connection.close()
-        except:
-            pass
+        except Exception as e:
+            logger.exception(e)

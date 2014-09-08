@@ -7,7 +7,7 @@ from errand_boy.transports import base, mock as mock_transport
 from .base import mock, BaseTestCase
 from .data import get_command_data
 
-class MockTransportTestCase(BaseTestCase):
+class MockTransportSimTestCase(BaseTestCase):
     def test_run_cmd(self):
         transport = mock_transport.MockTransport()
         
@@ -15,9 +15,7 @@ class MockTransportTestCase(BaseTestCase):
                 self.subprocess_patcher as mock_subprocess:
             mock_subprocess.PIPE = subprocess.PIPE
             
-            cmd = 'ls -al'
-            
-            stdout, stderr, returncode = get_command_data(cmd)
+            cmd, stdout, stderr, returncode, requests, responses = get_command_data('ls -al')
             
             process = mock.Mock()
             process.communicate.return_value = stdout, stderr
@@ -45,9 +43,7 @@ class MockTransportTestCase(BaseTestCase):
                 self.subprocess_patcher as mock_subprocess:
             mock_subprocess.PIPE = subprocess.PIPE
             
-            cmd = 'ls -al'
-            
-            stdout, stderr, returncode = get_command_data(cmd)
+            cmd, stdout, stderr, returncode, requests, responses = get_command_data('ls -al')
             
             process = mock.Mock()
             process.communicate.return_value = stdout, stderr
