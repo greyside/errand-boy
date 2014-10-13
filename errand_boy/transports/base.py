@@ -167,7 +167,7 @@ class BaseTransport(object):
         raise NotImplementedError()
     
     def server_close(self, connection):
-        raise NotImplementedError()
+        pass
     
     def translate_obj(self, exposed_locals, val):
         if isinstance(val, RemoteObjRef):
@@ -293,7 +293,7 @@ class BaseTransport(object):
         raise NotImplementedError()
     
     def client_close(self, connection):
-        raise NotImplementedError()
+        pass
     
     def send_algo(self, connection, send_func, first_line, headers=None, body=None):
         CRLF = constants.CRLF

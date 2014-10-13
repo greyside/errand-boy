@@ -74,8 +74,7 @@ class BaseTransportTestCase(BaseTestCase):
             self.transport.server_send(None, None)
     
     def test_server_close(self):
-        with self.assertRaises(NotImplementedError):
-            self.transport.server_close(None)
+        self.transport.server_close(None)
     
     def test_server_accept(self):
         with self.assertRaises(NotImplementedError):
@@ -94,6 +93,5 @@ class BaseTransportTestCase(BaseTestCase):
             self.transport.client_send(None, None)
     
     def test_client_close(self):
-        with self.assertRaises(NotImplementedError):
-            self.transport.client_close(None)
+        self.transport.client_close(None)
 
