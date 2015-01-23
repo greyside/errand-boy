@@ -2,10 +2,10 @@
 errand-boy
 ==========
 
-.. image:: https://travis-ci.org/SeanHayes/errand-boy.svg?branch=master
-    :target: https://travis-ci.org/SeanHayes/errand-boy
-.. image:: https://coveralls.io/repos/SeanHayes/errand-boy/badge.png?branch=master
-    :target: https://coveralls.io/r/SeanHayes/errand-boy?branch=master
+.. image:: https://travis-ci.org/greyside/errand-boy.svg?branch=master
+    :target: https://travis-ci.org/greyside/errand-boy
+.. image:: https://coveralls.io/repos/greyside/errand-boy/badge.png?branch=master
+    :target: https://coveralls.io/r/greyside/errand-boy?branch=master
 
 ----------------
 What does it do?

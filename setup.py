@@ -23,8 +23,8 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
     keywords='os fork process memory celery',
-    url='https://github.com/SeanHayes/errand-boy',
-    download_url='https://github.com/SeanHayes/errand-boy',
+    url='https://github.com/greyside/errand-boy',
+    download_url='https://github.com/greyside/errand-boy',
     license='BSD',
     packages=find_packages(),
     install_requires=['eventlet', 'six'],
