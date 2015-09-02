@@ -69,16 +69,16 @@ LOGGING = {
 
 def main(argv):
     parsed_args = parser.parse_args(argv[1:])
-    
+
     mod, klass = parsed_args.transport.rsplit('.', 1)
-    
+
     transport = getattr(importlib.import_module(mod), klass)()
-    
+
     command = parsed_args.command
-    
+
     if not command:
         logging.config.dictConfig(LOGGING)
-        
+
         transport.run_server(
             pool_size=parsed_args.pool_size,
             max_accepts=parsed_args.max_accepts,
@@ -86,10 +86,10 @@ def main(argv):
         )
     else:
         stdout, stderr, returncode = transport.run_cmd(' '.join(command))
-        
+
         sys.stdout.write(stdout)
         sys.stderr.write(stderr)
-        
+
         sys.exit(returncode)
 
 if __name__ == '__main__':

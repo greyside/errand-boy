@@ -5,6 +5,13 @@ python:
   - "3.3"
   - "3.4"
 
+matrix:
+  include:
+    - python: "2.7"
+      env: MODE=flake8
+  allow_failures:
+    - env: MODE=flake8
+
 # command to install dependencies
 install:
     - pip install tox coveralls
@@ -15,5 +22,5 @@ after_success:
 # command to run tests
 script:
     - coverage erase
-    - tox -e py${TRAVIS_PYTHON_VERSION/./}
+    - tox -e py${TRAVIS_PYTHON_VERSION/./}${MODE}
 

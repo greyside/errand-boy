@@ -25,13 +25,13 @@ drwxrwxr-x  2 me me 4096 Aug  5 10:48 tests
 
 def get_command_data(cmd):
     result = commands[cmd]
-    
+
     stdout, stderr = zip(*result[0])
     stdout = ''.join(stdout)
     stderr = ''.join(stderr)
-    
+
     returncode = result[1]
-    
+
     requests = [
         get_req('GET', 'subprocess.Popen'),
         get_req('GET', 'subprocess.PIPE'),
@@ -48,7 +48,7 @@ def get_command_data(cmd):
         get_req('GET', 'obj2.returncode'),
         b'',
     ]
-    
+
     responses = [
         get_resp('200 OK', base.RemoteObjRef('obj1')),
         get_resp('200 OK', subprocess.PIPE),
@@ -64,7 +64,7 @@ def get_command_data(cmd):
         get_resp('400 Error', StopIteration()),
         get_resp('200 OK', returncode),
     ]
-    
+
     return cmd, stdout, stderr, returncode, requests, responses
 
 def get_req(method, path, obj=None):
@@ -73,9 +73,9 @@ def get_req(method, path, obj=None):
             obj[1] = collections.OrderedDict(sorted(obj[1].items(), key=lambda t: t[0]))
         except:
             pass
-        
+
         obj = pickle.dumps(obj)
-        
+
         return ("%s %s\r\nContent-Length: %s\r\n\r\n" % (method, path, len(obj))).encode('utf-8') + obj
     else:
         return ("%s %s\r\nContent-Length: 0\r\n" % (method, path,)).encode('utf-8')
@@ -86,9 +86,9 @@ def get_resp(status, obj=None):
             obj[1] = collections.OrderedDict(sorted(obj[1].items(), key=lambda t: t[0]))
         except:
             pass
-        
+
         obj = pickle.dumps(obj)
-        
+
         return ("%s\r\nContent-Length: %s\r\n\r\n" % (status, len(obj))).encode('utf-8') + obj
     else:
         return ("%s\r\nContent-Length: 0\r\n" % (status,)).encode('utf-8')
@@ -96,4 +96,3 @@ def get_resp(status, obj=None):
 data = {
     'ls -al': ('ls -al', get_command_data('ls -al')),
 }
-

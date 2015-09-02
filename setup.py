@@ -10,7 +10,8 @@ test_package_name = 'tests'
 setup(
     name='errand-boy',
     version=errand_boy.__version__,
-    description="Establish a connection to the errand-boy deamon to execute commands without the memory overhead incurred by os.fork().",
+    description="Establish a connection to the errand-boy deamon to execute \
+commands without the memory overhead incurred by os.fork().",
     author='Seán Hayes',
     author_email='sean@seanhayes.name',
     classifiers=[
@@ -29,9 +30,8 @@ setup(
     packages=find_packages(),
     install_requires=['eventlet', 'six'],
     tests_require=[
-        'mock'
+        'mock==1.0.1'
     ],
     include_package_data=True,
     test_suite = test_package_name,
 )
-
