@@ -358,10 +358,16 @@ class BaseTransport(object):
 
             data += new_data
 
-            if CRLF in data:
-                split_data = data.split(CRLF)
-                lines.extend(split_data[:-1])
-                data = split_data[-1]
+            if not lines and CRLF in data:
+                try:
+                    headers, body = data.split(CRLF + CRLF, 1)
+                except ValueError:
+                    split_data = data.split(CRLF)
+                    lines.extend(split_data[:-1])
+                    data = split_data[-1]
+                else:
+                    lines.extend((headers + CRLF).split(CRLF))
+                    data = body
 
             if lines and content_length is None:
                 for line in lines:

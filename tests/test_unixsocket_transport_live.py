@@ -5,6 +5,7 @@ import time
 import unittest
 
 import errand_boy
+from errand_boy.constants import CRLF
 from errand_boy.exceptions import SessionClosedError
 from errand_boy.transports import base, unixsocket
 
@@ -33,6 +34,25 @@ class UNIXSocketTransportLiveTestCase(unittest.TestCase):
         transport = unixsocket.UNIXSocketTransport()
 
         str_data = (b'a' * 244544) + b'b'
+
+        with transport.get_session() as session:
+            foo = session.subprocess
+
+            process = foo.Popen(['cat'], stdin=foo.PIPE,
+                stdout=foo.PIPE,
+                stderr=foo.PIPE
+            )
+
+            res_stdout, res_stderr = process.communicate(str_data)
+
+            res_returncode = process.returncode
+
+        self.assertEqual(res_stdout, str_data)
+
+    def test_crlf_in_body(self):
+        transport = unixsocket.UNIXSocketTransport()
+
+        str_data = b'foo' + CRLF + b'bar'
 
         with transport.get_session() as session:
             foo = session.subprocess
