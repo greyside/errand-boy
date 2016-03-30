@@ -3,6 +3,6 @@
 #
 # Licensed under a BSD 3-Clause License. See LICENSE file.
 
-VERSION = (0, 3, 8)
+VERSION = (0, 3, 9)
 
 __version__ = "".join([".".join(map(str, VERSION[0:3])), "".join(VERSION[3:])])
